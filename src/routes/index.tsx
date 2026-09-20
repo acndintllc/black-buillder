@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Bot, Box, BrainCircuit, Check, ChevronDown, CircleDot, Eye,
   GitBranch, Hammer, Maximize2, Monitor, PanelTop,
@@ -49,11 +49,11 @@ function StatusDot({ status }: { status: Agent["status"] }) {
   return <span className={`h-1.5 w-1.5 rounded-full ${status === "done" ? "bg-success" : status === "active" ? "animate-pulse bg-warning" : "bg-muted-foreground"}`} />;
 }
 
-function AgentCard({ agent, selected, onClick }: { agent: Agent; selected: boolean; onClick: () => void }) {
+function AgentCard({ agent, selected, onClick, sourceRef }: { agent: Agent; selected: boolean; onClick: () => void; sourceRef: (node: HTMLElement | null) => void }) {
   const Icon = agent.icon;
   const [open, setOpen] = useState(agent.status === "active");
   return (
-    <article className={`border-b border-border transition-colors ${selected ? "bg-accent/60" : "bg-card hover:bg-accent/25"}`}>
+    <article ref={sourceRef} className={`relative border-b border-border transition-colors ${selected ? "bg-accent/60" : "bg-card hover:bg-accent/25"}`}>
       <button type="button" onClick={onClick} className="flex w-full items-start gap-3 p-3 text-left">
         <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center border border-border bg-background text-primary"><Icon className="h-3.5 w-3.5" /></span>
         <span className="min-w-0 flex-1">
@@ -73,26 +73,51 @@ function BrandMark() {
   return <div className="flex items-center gap-2.5"><div className="h-8 w-12 overflow-hidden"><img src={brandAsset.url} alt="BLACK BUILDER pyramid-eye mark" className="h-full w-full object-cover object-center scale-[3.4]" /></div><div><div className="font-serif text-sm font-semibold leading-none text-primary">BLACK</div><div className="mt-1 font-mono text-[7px] tracking-[0.28em] text-muted-foreground">BUILDER</div></div></div>;
 }
 
-const wirePaths = [
-  "M 470 92 C 535 92, 540 158, 625 158",
-  "M 470 176 C 550 176, 550 260, 675 260",
-  "M 470 260 C 570 260, 555 370, 700 370",
-  "M 470 344 C 535 344, 555 450, 650 450",
-  "M 470 428 C 555 428, 560 535, 705 535",
-  "M 470 512 C 590 512, 590 630, 740 630",
-];
+function ConnectionWires({ selected, containerRef, sourceRefs, targetRefs }: { selected: number; containerRef: React.RefObject<HTMLDivElement | null>; sourceRefs: React.RefObject<(HTMLElement | null)[]>; targetRefs: React.RefObject<(HTMLElement | null)[]> }) {
+  const [paths, setPaths] = useState<{ d: string; sx: number; sy: number; tx: number; ty: number }[]>([]);
 
-function ConnectionWires({ selected }: { selected: number }) {
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const measure = () => {
+      const bounds = container.getBoundingClientRect();
+      const next = sourceRefs.current.map((source, index) => {
+        const target = targetRefs.current[index];
+        if (!source || !target) return null;
+        const start = source.getBoundingClientRect();
+        const end = target.getBoundingClientRect();
+        const sx = start.right - bounds.left;
+        const sy = start.top + start.height / 2 - bounds.top;
+        const tx = end.left - bounds.left;
+        const ty = end.top + end.height / 2 - bounds.top;
+        const bend = Math.max(34, (tx - sx) * 0.48);
+        return { sx, sy, tx, ty, d: `M ${sx} ${sy} C ${sx + bend} ${sy}, ${tx - bend} ${ty}, ${tx} ${ty}` };
+      }).filter((path): path is { d: string; sx: number; sy: number; tx: number; ty: number } => path !== null);
+      setPaths(next);
+    };
+    const frame = requestAnimationFrame(measure);
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    container.addEventListener("scroll", measure, true);
+    window.addEventListener("resize", measure);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      container.removeEventListener("scroll", measure, true);
+      window.removeEventListener("resize", measure);
+    };
+  }, [containerRef, sourceRefs, targetRefs]);
+
   return (
-    <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-20 hidden h-full w-full overflow-visible lg:block" viewBox="0 0 1000 1000" preserveAspectRatio="none">
-      {wirePaths.map((path, index) => {
+    <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-20 hidden h-full w-full overflow-visible lg:block">
+      {paths.map((path, index) => {
         const active = selected === index;
         return (
-          <g key={path} className={active ? "text-primary" : "text-primary/20"}>
-            <path d={path} fill="none" stroke="currentColor" strokeWidth={active ? 1.6 : 0.75} vectorEffect="non-scaling-stroke" />
-            <path className="wireflow" d={path} fill="none" stroke="currentColor" strokeDasharray="2 7" strokeWidth={active ? 2.2 : 1} vectorEffect="non-scaling-stroke" />
-            <circle cx="470" cy={92 + index * 84} r={active ? 3.5 : 2} fill="currentColor" vectorEffect="non-scaling-stroke" />
-            <circle cx={[625, 675, 700, 650, 705, 740][index]} cy={[158, 260, 370, 450, 535, 630][index]} r={active ? 4 : 2.5} fill="currentColor" vectorEffect="non-scaling-stroke" />
+          <g key={path.d} className={active ? "text-primary" : "text-primary/20"}>
+            <path d={path.d} fill="none" stroke="currentColor" strokeWidth={active ? 1.6 : 0.75} />
+            <path className="wireflow" d={path.d} fill="none" stroke="currentColor" strokeDasharray="2 7" strokeWidth={active ? 2.2 : 1} />
+            <circle cx={path.sx} cy={path.sy} r={active ? 3.5 : 2} fill="currentColor" />
+            <circle cx={path.tx} cy={path.ty} r={active ? 4 : 2.5} fill="currentColor" />
           </g>
         );
       })}
@@ -100,19 +125,20 @@ function ConnectionWires({ selected }: { selected: number }) {
   );
 }
 
-function KibblePreview({ inspect }: { inspect: boolean }) {
+function KibblePreview({ inspect, selected, targetRefs }: { inspect: boolean; selected: number; targetRefs: React.RefObject<(HTMLElement | null)[]> }) {
+  const targetClass = (index: number) => selected === index ? "ring-1 ring-primary ring-offset-2 ring-offset-foreground" : "";
   return (
     <div className="mx-auto min-h-full w-full max-w-[440px] bg-foreground text-background">
-      <div className="flex h-12 items-center justify-between border-b border-background/10 px-4"><div className="flex items-center gap-2 font-semibold"><span className="grid h-6 w-6 place-items-center rounded-full bg-background text-foreground">K</span>KibbleCheck</div><CircleDot className="h-4 w-4" /></div>
-      <div className="relative m-4 flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md bg-background text-foreground">
+      <div ref={(node) => { targetRefs.current[0] = node; }} className={`flex h-12 items-center justify-between border-b border-background/10 px-4 transition-shadow ${targetClass(0)}`}><div className="flex items-center gap-2 font-semibold"><span className="grid h-6 w-6 place-items-center rounded-full bg-background text-foreground">K</span>KibbleCheck</div><CircleDot className="h-4 w-4" /></div>
+      <div ref={(node) => { targetRefs.current[1] = node; targetRefs.current[2] = node; }} className={`relative m-4 flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md bg-background text-foreground transition-shadow ${selected === 1 || selected === 2 ? targetClass(selected) : ""}`}>
         <div className="absolute inset-x-4 top-5 h-px bg-primary/80 shadow-[0_0_18px_var(--primary)] scanline" />
         <div className="text-center"><Box className="mx-auto h-14 w-14 text-primary" strokeWidth={1.2}/><p className="mt-3 text-sm font-semibold">Point at barcode</p><p className="mt-1 font-mono text-[9px] text-muted-foreground">ScannerView.tsx · BUILDER</p><Button size="sm" className="mt-4"><Play className="h-3 w-3" /> Scan</Button></div>
         {inspect && <div className="absolute inset-3 border border-primary"><span className="absolute -top-5 left-0 bg-primary px-1.5 py-0.5 font-mono text-[8px] text-primary-foreground">scan-card · ScannerView.tsx</span></div>}
       </div>
       <div className="space-y-3 px-4 pb-6">
-        <section className="rounded-md border border-background/15 bg-background/5 p-3"><div className="flex items-start justify-between gap-3"><div><p className="font-mono text-[9px] font-semibold text-danger">DETECTED · 2 RISKS</p><h3 className="mt-1 text-sm font-bold">Acme Grain-Free Kibble</h3><p className="text-[10px] opacity-60">Chicken recipe · 12 ingredients</p></div><div className="text-right"><div className="text-2xl font-bold">6.2</div><div className="text-[9px] font-bold text-warning">C+ SCORE</div></div></div></section>
-        <section><div className="mb-2 flex justify-between font-mono text-[9px] font-semibold"><span>INGREDIENTS</span><span className="opacity-50">FOOD-PARSER-APP</span></div><div className="divide-y divide-background/10 rounded-md border border-background/15">{[["Chicken", "safe", "text-success"], ["Pea Protein", "watch", "text-warning"], ["Propylene Glycol", "risk", "text-danger"]].map(([name,label,color]) => <div key={name} className="flex justify-between p-2.5 text-xs"><span>{name}</span><b className={color}>{label}</b></div>)}</div></section>
-        <section className="rounded-md bg-primary p-3 text-primary-foreground"><div className="flex items-center gap-1.5 font-mono text-[9px] font-bold"><Bot className="h-3 w-3" /> AI SWAP</div><p className="mt-2 text-xs font-medium">Try Orijen Original — 32% less filler at a similar price.</p><div className="mt-3 flex items-center justify-between border-t border-primary-foreground/20 pt-2 text-xs"><b>Orijen Original</b><span>$24.99 · 8.4 B+</span></div></section>
+        <section ref={(node) => { targetRefs.current[3] = node; }} className={`rounded-md border border-background/15 bg-background/5 p-3 transition-shadow ${targetClass(3)}`}><div className="flex items-start justify-between gap-3"><div><p className="font-mono text-[9px] font-semibold text-danger">DETECTED · 2 RISKS</p><h3 className="mt-1 text-sm font-bold">Acme Grain-Free Kibble</h3><p className="text-[10px] opacity-60">Chicken recipe · 12 ingredients</p></div><div className="text-right"><div className="text-2xl font-bold">6.2</div><div className="text-[9px] font-bold text-warning">C+ SCORE</div></div></div></section>
+        <section ref={(node) => { targetRefs.current[4] = node; }} className={`transition-shadow ${targetClass(4)}`}><div className="mb-2 flex justify-between font-mono text-[9px] font-semibold"><span>INGREDIENTS</span><span className="opacity-50">FOOD-PARSER-APP</span></div><div className="divide-y divide-background/10 rounded-md border border-background/15">{[["Chicken", "safe", "text-success"], ["Pea Protein", "watch", "text-warning"], ["Propylene Glycol", "risk", "text-danger"]].map(([name,label,color]) => <div key={name} className="flex justify-between p-2.5 text-xs"><span>{name}</span><b className={color}>{label}</b></div>)}</div></section>
+        <section ref={(node) => { targetRefs.current[5] = node; }} className={`rounded-md bg-primary p-3 text-primary-foreground transition-shadow ${targetClass(5)}`}><div className="flex items-center gap-1.5 font-mono text-[9px] font-bold"><Bot className="h-3 w-3" /> AI SWAP</div><p className="mt-2 text-xs font-medium">Try Orijen Original — 32% less filler at a similar price.</p><div className="mt-3 flex items-center justify-between border-t border-primary-foreground/20 pt-2 text-xs"><b>Orijen Original</b><span>$24.99 · 8.4 B+</span></div></section>
       </div>
     </div>
   );
@@ -126,6 +152,9 @@ function BlackBuilder() {
   const [building, setBuilding] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<"chat" | "agents" | "preview">("preview");
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const sourceRefs = useRef<(HTMLElement | null)[]>([]);
+  const targetRefs = useRef<(HTMLElement | null)[]>([]);
 
   const sendMessage = ({ text }: { text: string }) => {
     const value = text.trim();
@@ -150,8 +179,8 @@ function BlackBuilder() {
 
       <nav className="grid h-10 shrink-0 grid-cols-3 border-b border-border lg:hidden">{(["chat","agents","preview"] as const).map((item) => <Button key={item} variant="ghost" className={`h-10 rounded-none font-mono text-[9px] uppercase ${mobilePanel === item ? "border-b border-primary text-primary" : "text-muted-foreground"}`} onClick={() => setMobilePanel(item)}>{item}</Button>)}</nav>
 
-      <div className="relative min-h-0 flex-1 lg:grid lg:grid-cols-[minmax(280px,22%)_minmax(310px,25%)_1fr]">
-        <ConnectionWires selected={selectedAgent} />
+      <div ref={workspaceRef} className="relative min-h-0 flex-1 lg:grid lg:grid-cols-[minmax(280px,22%)_minmax(310px,25%)_1fr]">
+        <ConnectionWires selected={selectedAgent} containerRef={workspaceRef} sourceRefs={sourceRefs} targetRefs={targetRefs} />
         <section className={`${mobilePanel === "chat" ? "flex" : "hidden"} h-full min-h-0 flex-col border-r border-border bg-panel lg:flex`}>
           <div className="flex h-9 shrink-0 items-center justify-between border-b border-border px-3"><span className="font-mono text-[9px] font-semibold">CHAT / EDIT</span><span className="font-mono text-[8px] text-muted-foreground">MASON ROUTING</span></div>
           <Conversation className="min-h-0"><ConversationContent className="gap-4 p-3">{messages.map((message, index) => <Message from={message.role} key={`${message.role}-${index}`} className="max-w-full"><div className="mb-1 font-mono text-[8px] uppercase text-muted-foreground">{message.role === "user" ? "you" : "black builder"} · 09:{41 + index}</div><MessageContent className={message.role === "user" ? "border border-border bg-secondary px-3 py-2 text-xs" : "text-xs leading-relaxed"}><MessageResponse>{message.text}</MessageResponse></MessageContent></Message>)}</ConversationContent></Conversation>
@@ -160,13 +189,13 @@ function BlackBuilder() {
 
         <section className={`${mobilePanel === "agents" ? "flex" : "hidden"} h-full min-h-0 flex-col border-r border-border lg:flex`}>
           <div className="border-b border-border p-3"><div className="flex items-center justify-between"><span className="font-mono text-[9px] font-semibold">SWARM · 6 AGENTS</span><span className="font-mono text-[9px] text-warning">5 / 6 ACTIVE</span></div><div className="mt-2 h-1 overflow-hidden bg-muted"><div className="h-full w-[86%] bg-primary" /></div></div>
-          <div className="min-h-0 flex-1 overflow-y-auto">{agents.map((agent, index) => <AgentCard key={agent.name} agent={agent} selected={selectedAgent === index} onClick={() => setSelectedAgent(index)} />)}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto">{agents.map((agent, index) => <AgentCard key={agent.name} agent={agent} selected={selectedAgent === index} onClick={() => setSelectedAgent(index)} sourceRef={(node) => { sourceRefs.current[index] = node; }} />)}</div>
           <div className="border-t border-border bg-card p-3"><div className="flex justify-between font-mono text-[9px]"><span>INSPECTOR</span><span className="text-warning">92% COMPLIANCE</span></div><div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 text-success" /> manifest locked · 1 drift flagged</div></div>
         </section>
 
         <section className={`${mobilePanel === "preview" ? "flex" : "hidden"} h-full min-h-0 flex-col bg-muted/30 lg:flex`}>
           <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border bg-card px-3"><span className="font-mono text-[9px] font-semibold">PREVIEW</span><span className="font-mono text-[8px] text-muted-foreground">dog-food-scanner</span><span className="ml-auto flex items-center gap-1"><Button size="icon-sm" variant={view === "desktop" ? "secondary" : "ghost"} onClick={() => setView("desktop")} title="Desktop preview"><Monitor /></Button><Button size="icon-sm" variant={view === "mobile" ? "secondary" : "ghost"} onClick={() => setView("mobile")} title="Mobile preview"><Smartphone /></Button><Button size="icon-sm" variant={inspect ? "secondary" : "ghost"} onClick={() => setInspect(!inspect)} title="Inspect elements"><PanelTop /></Button><Button size="icon-sm" variant="ghost" title="Expand preview"><Maximize2 /></Button></span></div>
-          <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-5"><div className={`${view === "mobile" ? "max-w-[390px]" : "max-w-[760px]"} mx-auto min-h-full overflow-hidden rounded-md border border-border shadow-2xl transition-[max-width] duration-300`}><KibblePreview inspect={inspect} /></div></div>
+          <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-5"><div className={`${view === "mobile" ? "max-w-[390px]" : "max-w-[760px]"} mx-auto min-h-full overflow-hidden rounded-md border border-border shadow-2xl transition-[max-width] duration-300`}><KibblePreview inspect={inspect} selected={selectedAgent} targetRefs={targetRefs} /></div></div>
           <footer className="flex h-8 shrink-0 items-center gap-2 border-t border-border bg-card px-3 font-mono text-[8px] text-muted-foreground"><Check className="h-3 w-3 text-success" /> build_output/ ready <span className="ml-auto text-success">HOT RELOAD ON</span></footer>
         </section>
       </div>
