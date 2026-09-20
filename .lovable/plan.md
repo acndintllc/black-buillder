@@ -27,5 +27,6 @@ Move from the local demo to a full-stack Supabase app: accounts, projects, persi
 15. Add pricing, docs, and publish.
 
 ## Open questions
+- Backend location: option A (new project + your own Supabase) or option B (dual-backend with this project)?
 - Brain repo URL.
 - Which AI engine to use for the first real runs (Lovable AI Gateway is the easiest, OpenAI/Gemini if you have a key).
