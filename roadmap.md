@@ -3,17 +3,22 @@
 ## Done
 - Three-panel demo UI with chat, agents, preview.
 - Color-coordinated agents and live connector wires.
+- TypeScript build-error fix.
+- Lovable Cloud (Supabase) backend enabled.
 
 ## In progress
-- Enable Lovable Cloud backend (auth, database, storage).
+- Decide whether to keep the enabled Lovable Cloud Supabase project or connect a different Supabase project.
 
 ## Up next
-- Connect GitHub integration for source/versioning.
-- Decide first real feature and implement persisted data model.
-- Replace local demo state with real project/run records.
-- Add auth flows (sign up / sign in).
-- Publish live.
+- Set up Supabase Auth (email/password + Google).
+- Create database schema for profiles, projects, runs, outputs.
+- Add protected routes and a projects dashboard.
+- Wire the workspace to persisted project/run data.
+- Build the first real swarm runner with swappable AI engine.
+- Connect GitHub and fetch the brain repo.
+- Add pricing/docs and publish.
 
-## Open decisions
-- First feature: user accounts + projects, real swarm run, pricing, or landing/docs.
-- Backend approach: real LLM/repo APIs now vs simulated queue first.
+## Open blockers
+- Supabase backend choice: keep Lovable Cloud instance or connect own project.
+- Brain open-source repo URL.
+- Which AI engine to use for first real runs.
