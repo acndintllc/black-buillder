@@ -7,7 +7,7 @@
 - Lovable Cloud (Supabase) backend enabled.
 
 ## In progress
-- Decide whether to keep the enabled Lovable Cloud Supabase project or connect a different Supabase project.
+- Use the already-enabled managed Supabase backend; external Supabase connect is blocked while Cloud is on.
 - Design per-agent model/effort routing (e.g., planner/builder/fixer = extended reasoning, scavenger = fast/lite, stitcher/publisher = mid-tier).
 
 ## Up next
