@@ -126,14 +126,18 @@ function ConnectionWires({ selected, containerRef, sourceRefs, targetRefs }: { s
 }
 
 function KibblePreview({ inspect, selected, targetRefs }: { inspect: boolean; selected: number; targetRefs: React.RefObject<(HTMLElement | null)[]> }) {
-  const targetClass = (index: number) => `${agents[index].border} ${selected === index ? `ring-2 ${agents[index].ring} ring-offset-2 ring-offset-foreground` : ""}`;
+  const agentAt = (index: number) => agents[index]!;
+  const targetClass = (index: number) => {
+    const agent = agentAt(index);
+    return `${agent.border} ${selected === index ? `ring-2 ${agent.ring} ring-offset-2 ring-offset-foreground` : ""}`;
+  };
   return (
     <div className="mx-auto min-h-full w-full max-w-[440px] bg-foreground text-background">
-      <div ref={(node) => { targetRefs.current[0] = node; }} className={`flex h-12 items-center justify-between border-b border-l-2 border-background/10 px-4 transition-shadow ${targetClass(0)}`}><div className="flex items-center gap-2 font-semibold"><span className="grid h-6 w-6 place-items-center rounded-full bg-background text-foreground">K</span>KibbleCheck</div><CircleDot className={`h-4 w-4 ${agents[0].color}`} /></div>
+      <div ref={(node) => { targetRefs.current[0] = node; }} className={`flex h-12 items-center justify-between border-b border-l-2 border-background/10 px-4 transition-shadow ${targetClass(0)}`}><div className="flex items-center gap-2 font-semibold"><span className="grid h-6 w-6 place-items-center rounded-full bg-background text-foreground">K</span>KibbleCheck</div><CircleDot className={`h-4 w-4 ${agentAt(0).color}`} /></div>
       <div ref={(node) => { targetRefs.current[2] = node; }} className={`relative m-4 flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border-l-2 bg-background text-foreground transition-shadow ${targetClass(2)}`}>
         <div className="absolute inset-x-4 top-5 h-px bg-primary/80 shadow-[0_0_18px_var(--primary)] scanline" />
-        <div className="text-center"><Box className={`mx-auto h-14 w-14 ${agents[2].color}`} strokeWidth={1.2}/><p className="mt-3 text-sm font-semibold">Point at barcode</p><p className={`mt-1 font-mono text-[9px] ${agents[2].color}`}>ScannerView.tsx · BUILDER</p><Button size="sm" className="mt-4"><Play className="h-3 w-3" /> Scan</Button></div>
-        <div ref={(node) => { targetRefs.current[1] = node; }} className={`absolute right-3 top-3 border-l-2 bg-foreground px-2 py-1 font-mono text-[8px] ${agents[1].color} ${targetClass(1)}`}>REPO SOURCE · SCAVENGER</div>
+        <div className="text-center"><Box className={`mx-auto h-14 w-14 ${agentAt(2).color}`} strokeWidth={1.2}/><p className="mt-3 text-sm font-semibold">Point at barcode</p><p className={`mt-1 font-mono text-[9px] ${agentAt(2).color}`}>ScannerView.tsx · BUILDER</p><Button size="sm" className="mt-4"><Play className="h-3 w-3" /> Scan</Button></div>
+        <div ref={(node) => { targetRefs.current[1] = node; }} className={`absolute right-3 top-3 border-l-2 bg-foreground px-2 py-1 font-mono text-[8px] ${agentAt(1).color} ${targetClass(1)}`}>REPO SOURCE · SCAVENGER</div>
         {inspect && <div className="absolute inset-3 border border-primary"><span className="absolute -top-5 left-0 bg-primary px-1.5 py-0.5 font-mono text-[8px] text-primary-foreground">scan-card · ScannerView.tsx</span></div>}
       </div>
       <div className="space-y-3 px-4 pb-6">
