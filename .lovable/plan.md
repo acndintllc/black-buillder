@@ -5,7 +5,7 @@ Move from the local demo to a full-stack Supabase app: accounts, projects, persi
 
 ## Phase 1: Foundation
 1. Verify clean build after the TypeScript fix.
-2. Confirm the Supabase project connection — either the Lovable Cloud Supabase instance already enabled, or your own Supabase project connected in Lovable Settings → Connectors → Supabase.
+2. Use the already-enabled managed Supabase backend (Lovable Cloud). An external Supabase project cannot be attached while Cloud is enabled; switching would require disconnecting Cloud in Settings → Integrations.
 3. Enable Supabase Auth (email/password + Google).
 4. Create the database schema: profiles, projects, runs, run_agents, outputs. Every table gets RLS policies and GRANTs.
 5. Add sign-up / sign-in pages and a protected app layout under `/_authenticated`.
@@ -27,6 +27,5 @@ Move from the local demo to a full-stack Supabase app: accounts, projects, persi
 15. Add pricing, docs, and publish.
 
 ## Open questions
-- Keep the Lovable Cloud Supabase project already enabled, or connect your own Supabase project in Lovable Settings → Connectors → Supabase?
 - Brain repo URL.
-- Which AI engine to use for the first real runs (Lovable AI Gateway, OpenAI, etc.)?
+- Which AI engine to use for the first real runs (Lovable AI Gateway is the easiest, OpenAI/Gemini if you have a key).
