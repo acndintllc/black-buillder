@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import {
-  Bot, Box, BrainCircuit, Check, ChevronDown, CircleDot, Code2, Eye,
-  FileCode2, GitBranch, Hammer, Maximize2, Monitor, PackageCheck, PanelTop,
-  Play, Rocket, Search, Send, ShieldCheck, Smartphone, TerminalSquare,
+  Bot, Box, BrainCircuit, Check, ChevronDown, CircleDot, Eye,
+  GitBranch, Hammer, Maximize2, Monitor, PanelTop,
+  Play, Rocket, Search, ShieldCheck, Smartphone, TerminalSquare,
   Wrench, X,
 } from "lucide-react";
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
