@@ -164,8 +164,16 @@
   100% { transform: translateY(260px); opacity: 0; }
 }
 
+@keyframes wireflow {
+  to { stroke-dashoffset: -18; }
+}
+
 @utility scanline {
   animation: scanline 3.5s linear infinite;
+}
+
+@utility wireflow {
+  animation: wireflow 1.2s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

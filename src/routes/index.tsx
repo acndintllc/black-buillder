@@ -73,6 +73,33 @@ function BrandMark() {
   return <div className="flex items-center gap-2.5"><div className="h-8 w-12 overflow-hidden"><img src={brandAsset.url} alt="BLACK BUILDER pyramid-eye mark" className="h-full w-full object-cover object-center scale-[3.4]" /></div><div><div className="font-serif text-sm font-semibold leading-none text-primary">BLACK</div><div className="mt-1 font-mono text-[7px] tracking-[0.28em] text-muted-foreground">BUILDER</div></div></div>;
 }
 
+const wirePaths = [
+  "M 470 92 C 535 92, 540 158, 625 158",
+  "M 470 176 C 550 176, 550 260, 675 260",
+  "M 470 260 C 570 260, 555 370, 700 370",
+  "M 470 344 C 535 344, 555 450, 650 450",
+  "M 470 428 C 555 428, 560 535, 705 535",
+  "M 470 512 C 590 512, 590 630, 740 630",
+];
+
+function ConnectionWires({ selected }: { selected: number }) {
+  return (
+    <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-20 hidden h-full w-full overflow-visible lg:block" viewBox="0 0 1000 1000" preserveAspectRatio="none">
+      {wirePaths.map((path, index) => {
+        const active = selected === index;
+        return (
+          <g key={path} className={active ? "text-primary" : "text-primary/20"}>
+            <path d={path} fill="none" stroke="currentColor" strokeWidth={active ? 1.6 : 0.75} vectorEffect="non-scaling-stroke" />
+            <path className="wireflow" d={path} fill="none" stroke="currentColor" strokeDasharray="2 7" strokeWidth={active ? 2.2 : 1} vectorEffect="non-scaling-stroke" />
+            <circle cx="470" cy={92 + index * 84} r={active ? 3.5 : 2} fill="currentColor" vectorEffect="non-scaling-stroke" />
+            <circle cx={[625, 675, 700, 650, 705, 740][index]} cy={[158, 260, 370, 450, 535, 630][index]} r={active ? 4 : 2.5} fill="currentColor" vectorEffect="non-scaling-stroke" />
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 function KibblePreview({ inspect }: { inspect: boolean }) {
   return (
     <div className="mx-auto min-h-full w-full max-w-[440px] bg-foreground text-background">
@@ -123,7 +150,8 @@ function BlackBuilder() {
 
       <nav className="grid h-10 shrink-0 grid-cols-3 border-b border-border lg:hidden">{(["chat","agents","preview"] as const).map((item) => <Button key={item} variant="ghost" className={`h-10 rounded-none font-mono text-[9px] uppercase ${mobilePanel === item ? "border-b border-primary text-primary" : "text-muted-foreground"}`} onClick={() => setMobilePanel(item)}>{item}</Button>)}</nav>
 
-      <div className="min-h-0 flex-1 lg:grid lg:grid-cols-[minmax(280px,22%)_minmax(310px,25%)_1fr]">
+      <div className="relative min-h-0 flex-1 lg:grid lg:grid-cols-[minmax(280px,22%)_minmax(310px,25%)_1fr]">
+        <ConnectionWires selected={selectedAgent} />
         <section className={`${mobilePanel === "chat" ? "flex" : "hidden"} h-full min-h-0 flex-col border-r border-border bg-panel lg:flex`}>
           <div className="flex h-9 shrink-0 items-center justify-between border-b border-border px-3"><span className="font-mono text-[9px] font-semibold">CHAT / EDIT</span><span className="font-mono text-[8px] text-muted-foreground">MASON ROUTING</span></div>
           <Conversation className="min-h-0"><ConversationContent className="gap-4 p-3">{messages.map((message, index) => <Message from={message.role} key={`${message.role}-${index}`} className="max-w-full"><div className="mb-1 font-mono text-[8px] uppercase text-muted-foreground">{message.role === "user" ? "you" : "black builder"} · 09:{41 + index}</div><MessageContent className={message.role === "user" ? "border border-border bg-secondary px-3 py-2 text-xs" : "text-xs leading-relaxed"}><MessageResponse>{message.text}</MessageResponse></MessageContent></Message>)}</ConversationContent></Conversation>
