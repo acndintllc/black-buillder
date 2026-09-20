@@ -26,16 +26,16 @@ export const Route = createFileRoute("/")({
 
 type Agent = {
   name: string; icon: typeof Search; status: "done" | "active" | "queued";
-  task: string; file: string; source: string; logs: string[];
+  task: string; file: string; source: string; logs: string[]; color: string; border: string; ring: string;
 };
 
 const agents: Agent[] = [
-  { name: "PLANNER", icon: BrainCircuit, status: "done", task: "Product specification", file: "spec.md", source: "prompt → build manifest", logs: ["parsed product intent", "locked 8 acceptance rules", "wrote tasks.json"] },
-  { name: "SCAVENGER", icon: Search, status: "done", task: "Repo discovery", file: "brain_manifest.md", source: "3 top TypeScript repos", logs: ["searched GitHub + Hugging Face", "filtered stars > 300", "mapped reusable chunks"] },
-  { name: "BUILDER", icon: Hammer, status: "done", task: "Core experience", file: "ScannerView.tsx", source: "barcode-reader-js · 2.1k★", logs: ["remixed scanner flow", "built result card", "all checks green"] },
-  { name: "STITCHER", icon: GitBranch, status: "done", task: "Dependency graph", file: "connector-map.ts", source: "12 imports resolved", logs: ["merged repo brains", "resolved component imports", "lineage attached"] },
-  { name: "FIXER", icon: Wrench, status: "active", task: "Build verification", file: "fix_report.json", source: "pass 4 / 5", logs: ["running production build", "fixed 2 type errors", "checking mobile viewport…"] },
-  { name: "PUBLISHER", icon: Rocket, status: "queued", task: "Preview release", file: "release.md", source: "waiting on Fixer", logs: ["preview target ready", "GitHub push queued", "docs scaffolded"] },
+  { name: "PLANNER", color: "text-agent-planner", border: "border-agent-planner", ring: "ring-agent-planner", icon: BrainCircuit, status: "done", task: "Product specification", file: "spec.md", source: "prompt → build manifest", logs: ["parsed product intent", "locked 8 acceptance rules", "wrote tasks.json"] },
+  { name: "SCAVENGER", color: "text-agent-scavenger", border: "border-agent-scavenger", ring: "ring-agent-scavenger", icon: Search, status: "done", task: "Repo discovery", file: "brain_manifest.md", source: "3 top TypeScript repos", logs: ["searched GitHub + Hugging Face", "filtered stars > 300", "mapped reusable chunks"] },
+  { name: "BUILDER", color: "text-agent-builder", border: "border-agent-builder", ring: "ring-agent-builder", icon: Hammer, status: "done", task: "Core experience", file: "ScannerView.tsx", source: "barcode-reader-js · 2.1k★", logs: ["remixed scanner flow", "built result card", "all checks green"] },
+  { name: "STITCHER", color: "text-agent-stitcher", border: "border-agent-stitcher", ring: "ring-agent-stitcher", icon: GitBranch, status: "done", task: "Dependency graph", file: "connector-map.ts", source: "12 imports resolved", logs: ["merged repo brains", "resolved component imports", "lineage attached"] },
+  { name: "FIXER", color: "text-agent-fixer", border: "border-agent-fixer", ring: "ring-agent-fixer", icon: Wrench, status: "active", task: "Build verification", file: "fix_report.json", source: "pass 4 / 5", logs: ["running production build", "fixed 2 type errors", "checking mobile viewport…"] },
+  { name: "PUBLISHER", color: "text-agent-publisher", border: "border-agent-publisher", ring: "ring-agent-publisher", icon: Rocket, status: "queued", task: "Preview release", file: "release.md", source: "waiting on Fixer", logs: ["preview target ready", "GitHub push queued", "docs scaffolded"] },
 ];
 
 const initialMessages = [
@@ -53,18 +53,18 @@ function AgentCard({ agent, selected, onClick, sourceRef }: { agent: Agent; sele
   const Icon = agent.icon;
   const [open, setOpen] = useState(agent.status === "active");
   return (
-    <article ref={sourceRef} className={`relative border-b border-border transition-colors ${selected ? "bg-accent/60" : "bg-card hover:bg-accent/25"}`}>
+    <article ref={sourceRef} className={`relative border-b border-l-2 border-b-border ${agent.border} transition-colors ${selected ? "bg-accent/60" : "bg-card hover:bg-accent/25"}`}>
       <button type="button" onClick={onClick} className="flex w-full items-start gap-3 p-3 text-left">
-        <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center border border-border bg-background text-primary"><Icon className="h-3.5 w-3.5" /></span>
+        <span className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center border bg-background ${agent.border} ${agent.color}`}><Icon className="h-3.5 w-3.5" /></span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center justify-between gap-2"><b className="font-mono text-[10px] tracking-normal">{agent.name}</b><span className="flex items-center gap-1 font-mono text-[9px] uppercase text-muted-foreground"><StatusDot status={agent.status} />{agent.status}</span></span>
           <span className="mt-1 block text-xs font-semibold">{agent.task}</span>
-          <span className="mt-0.5 block truncate font-mono text-[9px] text-primary/85">{agent.file}</span>
+          <span className={`mt-0.5 block truncate font-mono text-[9px] ${agent.color}`}>{agent.file}</span>
           <span className="block truncate text-[10px] text-muted-foreground">{agent.source}</span>
         </span>
       </button>
       <button type="button" onClick={() => setOpen(!open)} className="flex w-full items-center gap-1.5 border-t border-border/50 px-3 py-1.5 font-mono text-[9px] text-muted-foreground hover:text-foreground"><TerminalSquare className="h-3 w-3" /> LOGS <ChevronDown className={`ml-auto h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} /></button>
-      {open && <div className="space-y-1 bg-background/60 px-3 py-2 font-mono text-[9px] text-muted-foreground">{agent.logs.map((log) => <p key={log}><span className="text-primary">›</span> {log}</p>)}</div>}
+      {open && <div className="space-y-1 bg-background/60 px-3 py-2 font-mono text-[9px] text-muted-foreground">{agent.logs.map((log) => <p key={log}><span className={agent.color}>›</span> {log}</p>)}</div>}
     </article>
   );
 }
@@ -113,7 +113,7 @@ function ConnectionWires({ selected, containerRef, sourceRefs, targetRefs }: { s
       {paths.map((path, index) => {
         const active = selected === index;
         return (
-          <g key={path.d} className={active ? "text-primary" : "text-primary/20"}>
+          <g key={path.d} className={`${agents[index]?.color ?? "text-primary"} ${active ? "opacity-100" : "opacity-30"}`}>
             <path d={path.d} fill="none" stroke="currentColor" strokeWidth={active ? 1.6 : 0.75} />
             <path className="wireflow" d={path.d} fill="none" stroke="currentColor" strokeDasharray="2 7" strokeWidth={active ? 2.2 : 1} />
             <circle cx={path.sx} cy={path.sy} r={active ? 3.5 : 2} fill="currentColor" />
@@ -126,19 +126,20 @@ function ConnectionWires({ selected, containerRef, sourceRefs, targetRefs }: { s
 }
 
 function KibblePreview({ inspect, selected, targetRefs }: { inspect: boolean; selected: number; targetRefs: React.RefObject<(HTMLElement | null)[]> }) {
-  const targetClass = (index: number) => selected === index ? "ring-1 ring-primary ring-offset-2 ring-offset-foreground" : "";
+  const targetClass = (index: number) => `${agents[index].border} ${selected === index ? `ring-2 ${agents[index].ring} ring-offset-2 ring-offset-foreground` : ""}`;
   return (
     <div className="mx-auto min-h-full w-full max-w-[440px] bg-foreground text-background">
-      <div ref={(node) => { targetRefs.current[0] = node; }} className={`flex h-12 items-center justify-between border-b border-background/10 px-4 transition-shadow ${targetClass(0)}`}><div className="flex items-center gap-2 font-semibold"><span className="grid h-6 w-6 place-items-center rounded-full bg-background text-foreground">K</span>KibbleCheck</div><CircleDot className="h-4 w-4" /></div>
-      <div ref={(node) => { targetRefs.current[1] = node; targetRefs.current[2] = node; }} className={`relative m-4 flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md bg-background text-foreground transition-shadow ${selected === 1 || selected === 2 ? targetClass(selected) : ""}`}>
+      <div ref={(node) => { targetRefs.current[0] = node; }} className={`flex h-12 items-center justify-between border-b border-l-2 border-background/10 px-4 transition-shadow ${targetClass(0)}`}><div className="flex items-center gap-2 font-semibold"><span className="grid h-6 w-6 place-items-center rounded-full bg-background text-foreground">K</span>KibbleCheck</div><CircleDot className={`h-4 w-4 ${agents[0].color}`} /></div>
+      <div ref={(node) => { targetRefs.current[2] = node; }} className={`relative m-4 flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border-l-2 bg-background text-foreground transition-shadow ${targetClass(2)}`}>
         <div className="absolute inset-x-4 top-5 h-px bg-primary/80 shadow-[0_0_18px_var(--primary)] scanline" />
-        <div className="text-center"><Box className="mx-auto h-14 w-14 text-primary" strokeWidth={1.2}/><p className="mt-3 text-sm font-semibold">Point at barcode</p><p className="mt-1 font-mono text-[9px] text-muted-foreground">ScannerView.tsx · BUILDER</p><Button size="sm" className="mt-4"><Play className="h-3 w-3" /> Scan</Button></div>
+        <div className="text-center"><Box className={`mx-auto h-14 w-14 ${agents[2].color}`} strokeWidth={1.2}/><p className="mt-3 text-sm font-semibold">Point at barcode</p><p className={`mt-1 font-mono text-[9px] ${agents[2].color}`}>ScannerView.tsx · BUILDER</p><Button size="sm" className="mt-4"><Play className="h-3 w-3" /> Scan</Button></div>
+        <div ref={(node) => { targetRefs.current[1] = node; }} className={`absolute right-3 top-3 border-l-2 bg-foreground px-2 py-1 font-mono text-[8px] ${agents[1].color} ${targetClass(1)}`}>REPO SOURCE · SCAVENGER</div>
         {inspect && <div className="absolute inset-3 border border-primary"><span className="absolute -top-5 left-0 bg-primary px-1.5 py-0.5 font-mono text-[8px] text-primary-foreground">scan-card · ScannerView.tsx</span></div>}
       </div>
       <div className="space-y-3 px-4 pb-6">
-        <section ref={(node) => { targetRefs.current[3] = node; }} className={`rounded-md border border-background/15 bg-background/5 p-3 transition-shadow ${targetClass(3)}`}><div className="flex items-start justify-between gap-3"><div><p className="font-mono text-[9px] font-semibold text-danger">DETECTED · 2 RISKS</p><h3 className="mt-1 text-sm font-bold">Acme Grain-Free Kibble</h3><p className="text-[10px] opacity-60">Chicken recipe · 12 ingredients</p></div><div className="text-right"><div className="text-2xl font-bold">6.2</div><div className="text-[9px] font-bold text-warning">C+ SCORE</div></div></div></section>
-        <section ref={(node) => { targetRefs.current[4] = node; }} className={`transition-shadow ${targetClass(4)}`}><div className="mb-2 flex justify-between font-mono text-[9px] font-semibold"><span>INGREDIENTS</span><span className="opacity-50">FOOD-PARSER-APP</span></div><div className="divide-y divide-background/10 rounded-md border border-background/15">{[["Chicken", "safe", "text-success"], ["Pea Protein", "watch", "text-warning"], ["Propylene Glycol", "risk", "text-danger"]].map(([name,label,color]) => <div key={name} className="flex justify-between p-2.5 text-xs"><span>{name}</span><b className={color}>{label}</b></div>)}</div></section>
-        <section ref={(node) => { targetRefs.current[5] = node; }} className={`rounded-md bg-primary p-3 text-primary-foreground transition-shadow ${targetClass(5)}`}><div className="flex items-center gap-1.5 font-mono text-[9px] font-bold"><Bot className="h-3 w-3" /> AI SWAP</div><p className="mt-2 text-xs font-medium">Try Orijen Original — 32% less filler at a similar price.</p><div className="mt-3 flex items-center justify-between border-t border-primary-foreground/20 pt-2 text-xs"><b>Orijen Original</b><span>$24.99 · 8.4 B+</span></div></section>
+        <section ref={(node) => { targetRefs.current[3] = node; }} className={`rounded-md border border-l-2 border-background/15 bg-background/5 p-3 transition-shadow ${targetClass(3)}`}><div className="flex items-start justify-between gap-3"><div><p className="font-mono text-[9px] font-semibold text-danger">DETECTED · 2 RISKS</p><h3 className="mt-1 text-sm font-bold">Acme Grain-Free Kibble</h3><p className="text-[10px] opacity-60">Chicken recipe · 12 ingredients</p></div><div className="text-right"><div className="text-2xl font-bold">6.2</div><div className="text-[9px] font-bold text-warning">C+ SCORE</div></div></div></section>
+        <section ref={(node) => { targetRefs.current[4] = node; }} className={`border-l-2 pl-2 transition-shadow ${targetClass(4)}`}><div className="mb-2 flex justify-between font-mono text-[9px] font-semibold"><span>INGREDIENTS</span><span className="opacity-50">FOOD-PARSER-APP</span></div><div className="divide-y divide-background/10 rounded-md border border-background/15">{[["Chicken", "safe", "text-success"], ["Pea Protein", "watch", "text-warning"], ["Propylene Glycol", "risk", "text-danger"]].map(([name,label,color]) => <div key={name} className="flex justify-between p-2.5 text-xs"><span>{name}</span><b className={color}>{label}</b></div>)}</div></section>
+        <section ref={(node) => { targetRefs.current[5] = node; }} className={`rounded-md border-l-2 bg-primary p-3 text-primary-foreground transition-shadow ${targetClass(5)}`}><div className="flex items-center gap-1.5 font-mono text-[9px] font-bold"><Bot className="h-3 w-3" /> AI SWAP</div><p className="mt-2 text-xs font-medium">Try Orijen Original — 32% less filler at a similar price.</p><div className="mt-3 flex items-center justify-between border-t border-primary-foreground/20 pt-2 text-xs"><b>Orijen Original</b><span>$24.99 · 8.4 B+</span></div></section>
       </div>
     </div>
   );
