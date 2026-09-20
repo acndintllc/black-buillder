@@ -8,6 +8,7 @@
 
 ## In progress
 - Decide whether to keep the enabled Lovable Cloud Supabase project or connect a different Supabase project.
+- Design per-agent model/effort routing (e.g., planner/builder/fixer = extended reasoning, scavenger = fast/lite, stitcher/publisher = mid-tier).
 
 ## Up next
 - Set up Supabase Auth (email/password + Google).
