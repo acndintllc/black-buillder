@@ -77,11 +77,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "BLACK BUILDER — Seven-Agent App Builder Swarm" },
+      {
+        name: "description",
+        content:
+          "BLACK BUILDER is a repo-first workspace where seven specialist agents plan, source, build, stitch, fix, publish, and package apps.",
+      },
+      { name: "author", content: "BLACK BUILDER" },
+      { property: "og:title", content: "BLACK BUILDER — Seven-Agent App Builder Swarm" },
+      {
+        property: "og:description",
+        content:
+          "Watch a seven-agent Frankenswarm turn a prompt into a shipped web and mobile app, repo by repo.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },

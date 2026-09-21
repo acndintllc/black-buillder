@@ -21,7 +21,8 @@ export const Route = createFileRoute("/")({
     { property: "og:description", content: "Build anything with a repo-first seven-agent swarm." },
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary_large_image" },
-  ] }),
+    { property: "og:url", content: "https://blackappcompleter.lovable.app/" },
+  ], links: [{ rel: "canonical", href: "https://blackappcompleter.lovable.app/" }] }),
   component: BlackBuilder,
 });
 
@@ -59,7 +60,7 @@ function AgentCard({ agent, selected, onClick, sourceRef }: { agent: Agent; sele
 }
 
 function BrandMark() {
-  return <div className="flex items-center gap-2.5"><div className="h-8 w-12 overflow-hidden"><img src={brandAsset.url} alt="BLACK BUILDER pyramid-eye mark" className="h-full w-full object-cover object-center scale-[3.4]" /></div><div><div className="font-serif text-sm font-semibold leading-none text-primary">BLACK</div><div className="mt-1 font-mono text-[7px] tracking-[0.28em] text-muted-foreground">BUILDER</div></div></div>;
+  return <div className="flex items-center gap-2.5"><div className="h-8 w-12 overflow-hidden"><img src={brandAsset.url} alt="BLACK BUILDER pyramid-eye mark" className="h-full w-full object-cover object-center scale-[3.4]" /></div><h1><span className="block font-serif text-sm font-semibold leading-none text-primary">BLACK</span><span className="mt-1 block font-mono text-[7px] tracking-[0.28em] text-muted-foreground">BUILDER</span></h1></div>;
 }
 
 function ConnectionWires({ selected, containerRef, sourceRefs, targetRefs }: { selected: number; containerRef: React.RefObject<HTMLDivElement | null>; sourceRefs: React.RefObject<(HTMLElement | null)[]>; targetRefs: React.RefObject<(HTMLElement | null)[]> }) {
