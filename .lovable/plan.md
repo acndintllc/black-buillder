@@ -10,38 +10,43 @@ Do nothing further on the backend here. Hand the full backend build off to Claud
 Keep seven agents. APP WRAPPER is a dedicated packaging step, not folded into the original six, because turning a web app into a store-ready mobile app requires different tooling and constraints than writing the app itself.
 
 1. PLANNER — cowork-style brain agent; uses a high-reasoning model and its own brain repo.
-2. SCAVENGER — coder
-3. BUILDER — coder
-4. STITCHER — coder
-5. FIXER — coder
-6. PUBLISHER — coder
-7. APP WRAPPER — coder; runs after PUBLISHER to package the output as a mobile app. Skipped if the project is already written in a mobile-native/play-store-ready language from the start.
+2. SCAVENGER — coder; finds existing repos that contain the functions/components needed.
+3. BUILDER — coder; strips those repos down to only the components the app needs.
+4. STITCHER — coder; assembles one coherent repo from the extracted components.
+5. FIXER — coder; audits, fixes, tests, and repairs the single stitched repo until it passes.
+6. PUBLISHER — coder; commits, pushes, opens PR, and deploys the web app preview.
+7. APP WRAPPER — coder; packages the published web app into a mobile app. Skipped if the project is already written in a mobile-native/play-store-ready language from the start.
 
-## Decision 3: Agent brain repos vs. the target app repo
+## Decision 3: Agent brain repos vs. the build pipeline
 There are two kinds of repos:
 
 - **Agent brain repos** — one per agent/function. These hold the agent's own implementation, prompts, tools, and knowledge. PLANNER's brain repo uses a high-reasoning model; the coder agents use coding models/tools.
-- **Target app repo** — the single repo the agents collaborate on to build or complete an app.
+- **Build repos** — the source repos SCAVENGER discovers, the component copies BUILDER creates, the single repo STITCHER assembles, and the final repo FIXER/PUBLISHER/App Wrapper operate on.
 
-Workflow on the target app repo:
-- SCAVENGER and BUILDER work independently (branches or isolated copies) within the target repo.
-- STITCHER merges their work into one coherent repo.
-- FIXER runs tests/lint/typecheck on that single repo and repairs it.
-- PUBLISHER commits, pushes branch, opens PR, and deploys a preview for that repo.
-- APP WRAPPER packages the repo into a mobile app.
+Full build pipeline:
+
+```text
+PLANNER    → defines the task and what functions/components are needed
+SCAVENGER  → searches GitHub for repos that contain those functions
+BUILDER    → clones each found repo and strips it down to the needed components
+STITCHER   → merges all extracted components into one coherent app repo
+FIXER      → audits, fixes, tests, and repairs the stitched repo
+PUBLISHER  → commits, pushes branch, opens PR, deploys web preview
+APP WRAPPER→ packages the web app as a mobile app
+```
 
 ## Frontend handoff to Claude Code
 1. Component inventory and props.
 2. Design tokens / agent color map (now including APP WRAPPER).
 3. Demo state shape → real data shape mapping.
-4. Suggested server functions and public API endpoints shaped around repo-per-function brain repos and a single target app repo per project.
+4. Suggested server functions and public API endpoints shaped around the scavenger→builder→stitcher pipeline.
 5. This architecture decision record.
 
 ## Next steps for Claude Code
 1. Scaffold the backend project (user's own Supabase or self-hosted).
 2. Port or recreate the frontend with seven agents.
 3. Implement each agent's brain repo with the right model/tooling.
-4. Implement the target-app-repo workflow: parallel SCAVENGER/BUILDER work, STITCHER merge, FIXER repair, PUBLISHER deploy, APP WRAPPER package.
+4. Implement the scavenger→builder→stitcher→fixer→publisher→wrapper pipeline.
 5. Wire the workspace to real runs with live status updates.
 
 ## Open decisions for the user / Claude Code
