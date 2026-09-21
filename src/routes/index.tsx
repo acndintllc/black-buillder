@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  Bot, Box, BrainCircuit, Check, ChevronDown, CircleDot, Eye,
-  GitBranch, Hammer, Maximize2, Monitor, PanelTop,
-  Play, Rocket, Search, ShieldCheck, Smartphone, TerminalSquare,
+  Bot, Box, Check, ChevronDown, CircleDot, Eye,
+  Maximize2, Monitor, Package, PanelTop,
+  Play, Rocket, ShieldCheck, Smartphone, TerminalSquare,
   Wrench, X,
 } from "lucide-react";
+import { agents, type Agent, type AgentStatus } from "@/lib/agents";
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import { PromptInput, PromptInputFooter, PromptInputSubmit, PromptInputTextarea } from "@/components/ai-elements/prompt-input";
