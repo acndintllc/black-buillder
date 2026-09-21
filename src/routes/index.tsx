@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  Bot, Box, BrainCircuit, Check, ChevronDown, CircleDot, Eye,
-  GitBranch, Hammer, Maximize2, Monitor, PanelTop,
-  Play, Rocket, Search, ShieldCheck, Smartphone, TerminalSquare,
+  Bot, Box, Check, ChevronDown, CircleDot, Eye,
+  Maximize2, Monitor, Package, PanelTop,
+  Play, Rocket, ShieldCheck, Smartphone, TerminalSquare,
   Wrench, X,
 } from "lucide-react";
+import { agents, type Agent, type AgentStatus } from "@/lib/agents";
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import { PromptInput, PromptInputFooter, PromptInputSubmit, PromptInputTextarea } from "@/components/ai-elements/prompt-input";
@@ -14,33 +15,21 @@ import brandAsset from "@/assets/black-builder-logo.jpg.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
-    { title: "BLACK BUILDER — Frankenswarm Demo" },
-    { name: "description", content: "A repo-first six-agent app builder workspace powered by Frankenswarm." },
-    { property: "og:title", content: "BLACK BUILDER — Frankenswarm Demo" },
-    { property: "og:description", content: "Build anything with a repo-first six-agent swarm." },
+    { title: "BLACK BUILDER — Seven-Agent Frankenswarm Demo" },
+    { name: "description", content: "A repo-first seven-agent app builder workspace powered by Frankenswarm." },
+    { property: "og:title", content: "BLACK BUILDER — Seven-Agent Frankenswarm Demo" },
+    { property: "og:description", content: "Build anything with a repo-first seven-agent swarm." },
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary_large_image" },
   ] }),
   component: BlackBuilder,
 });
 
-type Agent = {
-  name: string; icon: typeof Search; status: "done" | "active" | "queued";
-  task: string; file: string; source: string; logs: string[]; color: string; border: string; ring: string;
-};
-
-const agents: Agent[] = [
-  { name: "PLANNER", color: "text-agent-planner", border: "border-agent-planner", ring: "ring-agent-planner", icon: BrainCircuit, status: "done", task: "Product specification", file: "spec.md", source: "prompt → build manifest", logs: ["parsed product intent", "locked 8 acceptance rules", "wrote tasks.json"] },
-  { name: "SCAVENGER", color: "text-agent-scavenger", border: "border-agent-scavenger", ring: "ring-agent-scavenger", icon: Search, status: "done", task: "Repo discovery", file: "brain_manifest.md", source: "3 top TypeScript repos", logs: ["searched GitHub + Hugging Face", "filtered stars > 300", "mapped reusable chunks"] },
-  { name: "BUILDER", color: "text-agent-builder", border: "border-agent-builder", ring: "ring-agent-builder", icon: Hammer, status: "done", task: "Core experience", file: "ScannerView.tsx", source: "barcode-reader-js · 2.1k★", logs: ["remixed scanner flow", "built result card", "all checks green"] },
-  { name: "STITCHER", color: "text-agent-stitcher", border: "border-agent-stitcher", ring: "ring-agent-stitcher", icon: GitBranch, status: "done", task: "Dependency graph", file: "connector-map.ts", source: "12 imports resolved", logs: ["merged repo brains", "resolved component imports", "lineage attached"] },
-  { name: "FIXER", color: "text-agent-fixer", border: "border-agent-fixer", ring: "ring-agent-fixer", icon: Wrench, status: "active", task: "Build verification", file: "fix_report.json", source: "pass 4 / 5", logs: ["running production build", "fixed 2 type errors", "checking mobile viewport…"] },
-  { name: "PUBLISHER", color: "text-agent-publisher", border: "border-agent-publisher", ring: "ring-agent-publisher", icon: Rocket, status: "queued", task: "Preview release", file: "release.md", source: "waiting on Fixer", logs: ["preview target ready", "GitHub push queued", "docs scaffolded"] },
-];
+export type { Agent, AgentStatus } from "@/lib/agents";
 
 const initialMessages = [
   { role: "user" as const, text: "Build a dog food scanner — barcode scan, ingredient toxicity, score, and AI swap suggestions. Light, trustworthy." },
-  { role: "assistant" as const, text: "Locked the build specification. Six agents are working in parallel across planning, repo discovery, implementation, stitching, verification, and publishing." },
+  { role: "assistant" as const, text: "Locked the build specification. Seven agents are working in parallel across planning, repo discovery, implementation, stitching, verification, publishing, and mobile packaging." },
   { role: "user" as const, text: "Make the toxicity badge more alarming." },
   { role: "assistant" as const, text: "Routed to **FIXER** through the connector map. Targeted edit applied to `ResultCard.tsx` — no full rebuild." },
 ];
@@ -144,6 +133,7 @@ function KibblePreview({ inspect, selected, targetRefs }: { inspect: boolean; se
         <section ref={(node) => { targetRefs.current[3] = node; }} className={`rounded-md border border-l-2 border-background/15 bg-background/5 p-3 transition-shadow ${targetClass(3)}`}><div className="flex items-start justify-between gap-3"><div><p className="font-mono text-[9px] font-semibold text-danger">DETECTED · 2 RISKS</p><h3 className="mt-1 text-sm font-bold">Acme Grain-Free Kibble</h3><p className="text-[10px] opacity-60">Chicken recipe · 12 ingredients</p></div><div className="text-right"><div className="text-2xl font-bold">6.2</div><div className="text-[9px] font-bold text-warning">C+ SCORE</div></div></div></section>
         <section ref={(node) => { targetRefs.current[4] = node; }} className={`border-l-2 pl-2 transition-shadow ${targetClass(4)}`}><div className="mb-2 flex justify-between font-mono text-[9px] font-semibold"><span>INGREDIENTS</span><span className="opacity-50">FOOD-PARSER-APP</span></div><div className="divide-y divide-background/10 rounded-md border border-background/15">{[["Chicken", "safe", "text-success"], ["Pea Protein", "watch", "text-warning"], ["Propylene Glycol", "risk", "text-danger"]].map(([name,label,color]) => <div key={name} className="flex justify-between p-2.5 text-xs"><span>{name}</span><b className={color}>{label}</b></div>)}</div></section>
         <section ref={(node) => { targetRefs.current[5] = node; }} className={`rounded-md border-l-2 bg-primary p-3 text-primary-foreground transition-shadow ${targetClass(5)}`}><div className="flex items-center gap-1.5 font-mono text-[9px] font-bold"><Bot className="h-3 w-3" /> AI SWAP</div><p className="mt-2 text-xs font-medium">Try Orijen Original — 32% less filler at a similar price.</p><div className="mt-3 flex items-center justify-between border-t border-primary-foreground/20 pt-2 text-xs"><b>Orijen Original</b><span>$24.99 · 8.4 B+</span></div></section>
+        <section ref={(node) => { targetRefs.current[6] = node; }} className={`rounded-md border-l-2 bg-foreground p-3 text-background transition-shadow ${targetClass(6)}`}><div className="flex items-center gap-1.5 font-mono text-[9px] font-bold"><Package className="h-3 w-3" /> MOBILE PACKAGE</div><p className="mt-2 text-xs font-medium">Capacitor wrapper queued for iOS + Android.</p><div className="mt-3 flex items-center gap-2 border-t border-background/15 pt-2 text-[10px] opacity-70"><Smartphone className="h-3 w-3" /> APP WRAPPER</div></section>
       </div>
     </div>
   );
@@ -193,7 +183,7 @@ function BlackBuilder() {
         </section>
 
         <section className={`${mobilePanel === "agents" ? "flex" : "hidden"} h-full min-h-0 flex-col border-r border-border lg:flex`}>
-          <div className="border-b border-border p-3"><div className="flex items-center justify-between"><span className="font-mono text-[9px] font-semibold">SWARM · 6 AGENTS</span><span className="font-mono text-[9px] text-warning">5 / 6 ACTIVE</span></div><div className="mt-2 h-1 overflow-hidden bg-muted"><div className="h-full w-[86%] bg-primary" /></div></div>
+          <div className="border-b border-border p-3"><div className="flex items-center justify-between"><span className="font-mono text-[9px] font-semibold">SWARM · 7 AGENTS</span><span className="font-mono text-[9px] text-warning">5 / 7 ACTIVE</span></div><div className="mt-2 h-1 overflow-hidden bg-muted"><div className="h-full w-[71%] bg-primary" /></div></div>
           <div className="min-h-0 flex-1 overflow-y-auto">{agents.map((agent, index) => <AgentCard key={agent.name} agent={agent} selected={selectedAgent === index} onClick={() => setSelectedAgent(index)} sourceRef={(node) => { sourceRefs.current[index] = node; }} />)}</div>
           <div className="border-t border-border bg-card p-3"><div className="flex justify-between font-mono text-[9px]"><span>INSPECTOR</span><span className="text-warning">92% COMPLIANCE</span></div><div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 text-success" /> manifest locked · 1 drift flagged</div></div>
         </section>

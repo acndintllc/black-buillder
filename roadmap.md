@@ -5,21 +5,27 @@
 - Color-coordinated agents and live connector wires.
 - TypeScript build-error fix.
 - Lovable Cloud (Supabase) backend enabled.
+- Decided on 7-agent architecture: PLANNER = cowork-style brain agent with high-reasoning model; SCAVENGER/BUILDER/STITCHER/FIXER/PUBLISHER/APP-WRAPPER = coders.
+- Decided repo-per-function architecture (each agent/function owns its own repo).
+- Confirmed APP-WRAPPER stays as a distinct agent rather than folding mobile output into the original six.
+- Clarified build pipeline: SCAVENGER finds repos → BUILDER strips components → STITCHER assembles one repo → FIXER repairs → PUBLISHER deploys → APP-WRAPPER packages mobile.
+- Prepared `HANDOFF.md` and centralized agent definitions in `src/lib/agents.ts`.
 
 ## In progress
-- Decide backend location: Lovable Cloud cannot be swapped for an external Supabase project on this project. Options: (A) new project with Cloud disabled + own Supabase, rebuild app; (B) keep this project on Cloud but route app data to own Supabase via secrets.
-- Design per-agent model/effort routing (e.g., planner/builder/fixer = extended reasoning, scavenger = fast/lite, stitcher/publisher = mid-tier).
+- Frontend handoff complete; backend build is intentionally outside this Lovable project and will be continued in Claude Code.
 
-## Up next
-- Set up Supabase Auth (email/password + Google).
-- Create database schema for profiles, projects, runs, outputs.
-- Add protected routes and a projects dashboard.
-- Wire the workspace to persisted project/run data.
-- Build the first real swarm runner with swappable AI engine.
-- Connect GitHub and fetch the brain repo.
+## Up next (Claude Code)
+- Create a new project with user's own Supabase (Lovable Cloud disabled) or self-hosted backend.
+- Port or recreate the frontend with seven agents.
+- Implement each agent's brain repo with the right model/tooling.
+- Implement the scavenger→builder→stitcher→fixer→publisher→app-wrapper pipeline.
+- Wire the workspace to real persisted runs.
 - Add pricing/docs and publish.
 
 ## Open blockers
-- Supabase backend choice: keep Lovable Cloud instance or connect own project.
-- Brain open-source repo URL.
-- Which AI engine to use for first real runs.
+- Which high-reasoning model for PLANNER?
+- Which coding-agent engine for the six coder agents? (Claude Code CLI / OpenHands / custom)
+- Mobile target for APP-WRAPPER (Capacitor / React Native / Flutter / native iOS/Android / PWA)?
+- Hosting/preview target for web and mobile outputs.
+- Auth providers beyond email + Google.
+- GitHub token scopes and repo access model.
