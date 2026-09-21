@@ -15,10 +15,10 @@ import brandAsset from "@/assets/black-builder-logo.jpg.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
-    { title: "BLACK BUILDER — Frankenswarm Demo" },
-    { name: "description", content: "A repo-first six-agent app builder workspace powered by Frankenswarm." },
-    { property: "og:title", content: "BLACK BUILDER — Frankenswarm Demo" },
-    { property: "og:description", content: "Build anything with a repo-first six-agent swarm." },
+    { title: "BLACK BUILDER — Seven-Agent Frankenswarm Demo" },
+    { name: "description", content: "A repo-first seven-agent app builder workspace powered by Frankenswarm." },
+    { property: "og:title", content: "BLACK BUILDER — Seven-Agent Frankenswarm Demo" },
+    { property: "og:description", content: "Build anything with a repo-first seven-agent swarm." },
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary_large_image" },
   ] }),
