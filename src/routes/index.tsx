@@ -182,7 +182,7 @@ function BlackBuilder() {
         </section>
 
         <section className={`${mobilePanel === "agents" ? "flex" : "hidden"} h-full min-h-0 flex-col border-r border-border lg:flex`}>
-          <div className="border-b border-border p-3"><div className="flex items-center justify-between"><span className="font-mono text-[9px] font-semibold">SWARM · 6 AGENTS</span><span className="font-mono text-[9px] text-warning">5 / 6 ACTIVE</span></div><div className="mt-2 h-1 overflow-hidden bg-muted"><div className="h-full w-[86%] bg-primary" /></div></div>
+          <div className="border-b border-border p-3"><div className="flex items-center justify-between"><span className="font-mono text-[9px] font-semibold">SWARM · 7 AGENTS</span><span className="font-mono text-[9px] text-warning">5 / 7 ACTIVE</span></div><div className="mt-2 h-1 overflow-hidden bg-muted"><div className="h-full w-[71%] bg-primary" /></div></div>
           <div className="min-h-0 flex-1 overflow-y-auto">{agents.map((agent, index) => <AgentCard key={agent.name} agent={agent} selected={selectedAgent === index} onClick={() => setSelectedAgent(index)} sourceRef={(node) => { sourceRefs.current[index] = node; }} />)}</div>
           <div className="border-t border-border bg-card p-3"><div className="flex justify-between font-mono text-[9px]"><span>INSPECTOR</span><span className="text-warning">92% COMPLIANCE</span></div><div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 text-success" /> manifest locked · 1 drift flagged</div></div>
         </section>
