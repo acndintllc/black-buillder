@@ -29,7 +29,7 @@ export type { Agent, AgentStatus } from "@/lib/agents";
 
 const initialMessages = [
   { role: "user" as const, text: "Build a dog food scanner — barcode scan, ingredient toxicity, score, and AI swap suggestions. Light, trustworthy." },
-  { role: "assistant" as const, text: "Locked the build specification. Six agents are working in parallel across planning, repo discovery, implementation, stitching, verification, and publishing." },
+  { role: "assistant" as const, text: "Locked the build specification. Seven agents are working in parallel across planning, repo discovery, implementation, stitching, verification, publishing, and mobile packaging." },
   { role: "user" as const, text: "Make the toxicity badge more alarming." },
   { role: "assistant" as const, text: "Routed to **FIXER** through the connector map. Targeted edit applied to `ResultCard.tsx` — no full rebuild." },
 ];
