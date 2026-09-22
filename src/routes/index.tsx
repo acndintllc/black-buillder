@@ -1,198 +1,474 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Bot, Box, Check, ChevronDown, CircleDot, Eye,
-  Maximize2, Monitor, Package, PanelTop,
-  Play, Rocket, ShieldCheck, Smartphone, TerminalSquare,
-  Wrench, X,
+  ChevronDown,
+  ExternalLink,
+  Loader2,
+  LogOut,
+  Monitor,
+  Smartphone,
+  TerminalSquare,
 } from "lucide-react";
-import { agents, type Agent, type AgentStatus } from "@/lib/agents";
+import { toast } from "sonner";
+import {
+  agents,
+  stageStatusLabel,
+  type AgentCatalogEntry,
+  type AgentType,
+  type StageStatus,
+} from "@/lib/agents";
+import { useSession } from "@/lib/use-session";
+import { listRuns, createRun, getRun } from "@/lib/runs.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
-import { PromptInput, PromptInputFooter, PromptInputSubmit, PromptInputTextarea } from "@/components/ai-elements/prompt-input";
+import {
+  PromptInput,
+  PromptInputFooter,
+  PromptInputSubmit,
+  PromptInputTextarea,
+} from "@/components/ai-elements/prompt-input";
 import { Button } from "@/components/ui/button";
 import brandAsset from "@/assets/black-builder-logo.jpg.asset.json";
 
 export const Route = createFileRoute("/")({
-  head: () => ({ meta: [
-    { title: "BLACK BUILDER — Seven-Agent Frankenswarm Demo" },
-    { name: "description", content: "A repo-first seven-agent app builder workspace powered by Frankenswarm." },
-    { property: "og:title", content: "BLACK BUILDER — Seven-Agent Frankenswarm Demo" },
-    { property: "og:description", content: "Build anything with a repo-first seven-agent swarm." },
-    { property: "og:type", content: "website" },
-    { name: "twitter:card", content: "summary_large_image" },
-    { property: "og:url", content: "https://blackappcompleter.lovable.app/" },
-  ], links: [{ rel: "canonical", href: "https://blackappcompleter.lovable.app/" }] }),
+  head: () => ({
+    meta: [
+      { title: "BLACK BUILDER — Seven-Agent App Builder Swarm" },
+      {
+        name: "description",
+        content: "A repo-first seven-agent app builder workspace, backed by Supabase.",
+      },
+      { property: "og:title", content: "BLACK BUILDER — Seven-Agent App Builder Swarm" },
+      {
+        property: "og:description",
+        content: "Build anything with a repo-first seven-agent swarm.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { property: "og:url", content: "https://blackappcompleter.lovable.app/" },
+    ],
+    links: [{ rel: "canonical", href: "https://blackappcompleter.lovable.app/" }],
+  }),
   component: BlackBuilder,
 });
 
-export type { Agent, AgentStatus } from "@/lib/agents";
+type RunSummary = Awaited<ReturnType<typeof listRuns>>[number];
+type RunDetail = Awaited<ReturnType<typeof getRun>>;
 
-const initialMessages = [
-  { role: "user" as const, text: "Build a dog food scanner — barcode scan, ingredient toxicity, score, and AI swap suggestions. Light, trustworthy." },
-  { role: "assistant" as const, text: "Locked the build specification. Seven agents are working in parallel across planning, repo discovery, implementation, stitching, verification, publishing, and mobile packaging." },
-  { role: "user" as const, text: "Make the toxicity badge more alarming." },
-  { role: "assistant" as const, text: "Routed to **FIXER** through the connector map. Targeted edit applied to `ResultCard.tsx` — no full rebuild." },
-];
-
-function StatusDot({ status }: { status: Agent["status"] }) {
-  return <span className={`h-1.5 w-1.5 rounded-full ${status === "done" ? "bg-success" : status === "active" ? "animate-pulse bg-warning" : "bg-muted-foreground"}`} />;
+function runStatusLine(run: RunSummary): string {
+  switch (run.status) {
+    case "pending":
+      return "Queued. The swarm will pick this up shortly.";
+    case "running":
+      return `Running — currently at ${run.current_stage ?? "…"}.`;
+    case "passed":
+      return "Build complete. Preview is ready.";
+    case "failed":
+      return "Build failed. Check FIXER logs for details.";
+    default:
+      return "Queued.";
+  }
 }
 
-function AgentCard({ agent, selected, onClick, sourceRef }: { agent: Agent; selected: boolean; onClick: () => void; sourceRef: (node: HTMLElement | null) => void }) {
-  const Icon = agent.icon;
-  const [open, setOpen] = useState(agent.status === "active");
+function StageStatusDot({ status }: { status: StageStatus }) {
+  const cls =
+    status === "passed"
+      ? "bg-success"
+      : status === "running"
+        ? "animate-pulse bg-warning"
+        : status === "failed" || status === "escalated"
+          ? "bg-danger"
+          : "bg-muted-foreground";
+  return <span className={`h-1.5 w-1.5 rounded-full ${cls}`} />;
+}
+
+function StageCard({
+  catalog,
+  stage,
+  logs,
+  selected,
+  onClick,
+}: {
+  catalog: AgentCatalogEntry;
+  stage: RunDetail["stages"][number] | undefined;
+  logs: RunDetail["logs"];
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const Icon = catalog.icon;
+  const status: StageStatus = stage?.status ?? "pending";
+  const [open, setOpen] = useState(status === "running");
   return (
-    <article ref={sourceRef} className={`relative border-b border-l-2 border-b-border ${agent.border} transition-colors ${selected ? "bg-accent/60" : "bg-card hover:bg-accent/25"}`}>
-      <button type="button" onClick={onClick} className="flex w-full items-start gap-3 p-3 text-left">
-        <span className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center border bg-background ${agent.border} ${agent.color}`}><Icon className="h-3.5 w-3.5" /></span>
+    <article
+      className={`relative border-b border-l-2 border-b-border ${catalog.border} transition-colors ${selected ? "bg-accent/60" : "bg-card hover:bg-accent/25"}`}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex w-full items-start gap-3 p-3 text-left"
+      >
+        <span
+          className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center border bg-background ${catalog.border} ${catalog.color}`}
+        >
+          <Icon className="h-3.5 w-3.5" />
+        </span>
         <span className="min-w-0 flex-1">
-          <span className="flex items-center justify-between gap-2"><b className="font-mono text-[10px] tracking-normal">{agent.name}</b><span className="flex items-center gap-1 font-mono text-[9px] uppercase text-muted-foreground"><StatusDot status={agent.status} />{agent.status}</span></span>
-          <span className="mt-1 block text-xs font-semibold">{agent.task}</span>
-          <span className={`mt-0.5 block truncate font-mono text-[9px] ${agent.color}`}>{agent.file}</span>
-          <span className="block truncate text-[10px] text-muted-foreground">{agent.source}</span>
+          <span className="flex items-center justify-between gap-2">
+            <b className="font-mono text-[10px] tracking-normal">{catalog.name}</b>
+            <span className="flex items-center gap-1 font-mono text-[9px] uppercase text-muted-foreground">
+              <StageStatusDot status={status} />
+              {stageStatusLabel(status)}
+            </span>
+          </span>
+          <span className="mt-1 block text-xs font-semibold">{catalog.role}</span>
+          {stage?.summary && (
+            <span className={`mt-0.5 block truncate font-mono text-[9px] ${catalog.color}`}>
+              {stage.summary}
+            </span>
+          )}
+          {stage?.branch && (
+            <span className="block truncate text-[10px] text-muted-foreground">{stage.branch}</span>
+          )}
         </span>
       </button>
-      <button type="button" onClick={() => setOpen(!open)} className="flex w-full items-center gap-1.5 border-t border-border/50 px-3 py-1.5 font-mono text-[9px] text-muted-foreground hover:text-foreground"><TerminalSquare className="h-3 w-3" /> LOGS <ChevronDown className={`ml-auto h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} /></button>
-      {open && <div className="space-y-1 bg-background/60 px-3 py-2 font-mono text-[9px] text-muted-foreground">{agent.logs.map((log) => <p key={log}><span className={agent.color}>›</span> {log}</p>)}</div>}
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center gap-1.5 border-t border-border/50 px-3 py-1.5 font-mono text-[9px] text-muted-foreground hover:text-foreground"
+      >
+        <TerminalSquare className="h-3 w-3" /> LOGS{" "}
+        <ChevronDown
+          className={`ml-auto h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && (
+        <div className="space-y-1 bg-background/60 px-3 py-2 font-mono text-[9px] text-muted-foreground">
+          {logs.length === 0 ? (
+            <p>No logs yet.</p>
+          ) : (
+            logs.map((log) => (
+              <p key={log.id}>
+                <span className={catalog.color}>›</span> {log.message}
+              </p>
+            ))
+          )}
+        </div>
+      )}
     </article>
   );
 }
 
 function BrandMark() {
-  return <div className="flex items-center gap-2.5"><div className="h-8 w-12 overflow-hidden"><img src={brandAsset.url} alt="BLACK BUILDER pyramid-eye mark" className="h-full w-full object-cover object-center scale-[3.4]" /></div><h1><span className="block font-serif text-sm font-semibold leading-none text-primary">BLACK</span><span className="mt-1 block font-mono text-[7px] tracking-[0.28em] text-muted-foreground">BUILDER</span></h1></div>;
-}
-
-function ConnectionWires({ selected, containerRef, sourceRefs, targetRefs }: { selected: number; containerRef: React.RefObject<HTMLDivElement | null>; sourceRefs: React.RefObject<(HTMLElement | null)[]>; targetRefs: React.RefObject<(HTMLElement | null)[]> }) {
-  const [paths, setPaths] = useState<{ d: string; sx: number; sy: number; tx: number; ty: number }[]>([]);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const measure = () => {
-      const bounds = container.getBoundingClientRect();
-      const next = sourceRefs.current.map((source, index) => {
-        const target = targetRefs.current[index];
-        if (!source || !target) return null;
-        const start = source.getBoundingClientRect();
-        const end = target.getBoundingClientRect();
-        const sx = start.right - bounds.left;
-        const sy = start.top + start.height / 2 - bounds.top;
-        const tx = end.left - bounds.left;
-        const ty = end.top + end.height / 2 - bounds.top;
-        const bend = Math.max(34, (tx - sx) * 0.48);
-        return { sx, sy, tx, ty, d: `M ${sx} ${sy} C ${sx + bend} ${sy}, ${tx - bend} ${ty}, ${tx} ${ty}` };
-      }).filter((path): path is { d: string; sx: number; sy: number; tx: number; ty: number } => path !== null);
-      setPaths(next);
-    };
-    const frame = requestAnimationFrame(measure);
-    const observer = new ResizeObserver(measure);
-    observer.observe(container);
-    container.addEventListener("scroll", measure, true);
-    window.addEventListener("resize", measure);
-    return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-      container.removeEventListener("scroll", measure, true);
-      window.removeEventListener("resize", measure);
-    };
-  }, [containerRef, sourceRefs, targetRefs]);
-
   return (
-    <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-20 hidden h-full w-full overflow-visible lg:block">
-      {paths.map((path, index) => {
-        const active = selected === index;
-        return (
-          <g key={path.d} className={`${agents[index]?.color ?? "text-primary"} ${active ? "opacity-100" : "opacity-30"}`}>
-            <path d={path.d} fill="none" stroke="currentColor" strokeWidth={active ? 1.6 : 0.75} />
-            <path className="wireflow" d={path.d} fill="none" stroke="currentColor" strokeDasharray="2 7" strokeWidth={active ? 2.2 : 1} />
-            <circle cx={path.sx} cy={path.sy} r={active ? 3.5 : 2} fill="currentColor" />
-            <circle cx={path.tx} cy={path.ty} r={active ? 4 : 2.5} fill="currentColor" />
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-function KibblePreview({ inspect, selected, targetRefs }: { inspect: boolean; selected: number; targetRefs: React.RefObject<(HTMLElement | null)[]> }) {
-  const agentAt = (index: number) => agents[index]!;
-  const targetClass = (index: number) => {
-    const agent = agentAt(index);
-    return `${agent.border} ${selected === index ? `ring-2 ${agent.ring} ring-offset-2 ring-offset-foreground` : ""}`;
-  };
-  return (
-    <div className="mx-auto min-h-full w-full max-w-[440px] bg-foreground text-background">
-      <div ref={(node) => { targetRefs.current[0] = node; }} className={`flex h-12 items-center justify-between border-b border-l-2 border-background/10 px-4 transition-shadow ${targetClass(0)}`}><div className="flex items-center gap-2 font-semibold"><span className="grid h-6 w-6 place-items-center rounded-full bg-background text-foreground">K</span>KibbleCheck</div><CircleDot className={`h-4 w-4 ${agentAt(0).color}`} /></div>
-      <div ref={(node) => { targetRefs.current[2] = node; }} className={`relative m-4 flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border-l-2 bg-background text-foreground transition-shadow ${targetClass(2)}`}>
-        <div className="absolute inset-x-4 top-5 h-px bg-primary/80 shadow-[0_0_18px_var(--primary)] scanline" />
-        <div className="text-center"><Box className={`mx-auto h-14 w-14 ${agentAt(2).color}`} strokeWidth={1.2}/><p className="mt-3 text-sm font-semibold">Point at barcode</p><p className={`mt-1 font-mono text-[9px] ${agentAt(2).color}`}>ScannerView.tsx · BUILDER</p><Button size="sm" className="mt-4"><Play className="h-3 w-3" /> Scan</Button></div>
-        <div ref={(node) => { targetRefs.current[1] = node; }} className={`absolute right-3 top-3 border-l-2 bg-foreground px-2 py-1 font-mono text-[8px] ${agentAt(1).color} ${targetClass(1)}`}>REPO SOURCE · SCAVENGER</div>
-        {inspect && <div className="absolute inset-3 border border-primary"><span className="absolute -top-5 left-0 bg-primary px-1.5 py-0.5 font-mono text-[8px] text-primary-foreground">scan-card · ScannerView.tsx</span></div>}
+    <div className="flex items-center gap-2.5">
+      <div className="h-8 w-12 overflow-hidden">
+        <img
+          src={brandAsset.url}
+          alt="BLACK BUILDER pyramid-eye mark"
+          className="h-full w-full object-cover object-center scale-[3.4]"
+        />
       </div>
-      <div className="space-y-3 px-4 pb-6">
-        <section ref={(node) => { targetRefs.current[3] = node; }} className={`rounded-md border border-l-2 border-background/15 bg-background/5 p-3 transition-shadow ${targetClass(3)}`}><div className="flex items-start justify-between gap-3"><div><p className="font-mono text-[9px] font-semibold text-danger">DETECTED · 2 RISKS</p><h3 className="mt-1 text-sm font-bold">Acme Grain-Free Kibble</h3><p className="text-[10px] opacity-60">Chicken recipe · 12 ingredients</p></div><div className="text-right"><div className="text-2xl font-bold">6.2</div><div className="text-[9px] font-bold text-warning">C+ SCORE</div></div></div></section>
-        <section ref={(node) => { targetRefs.current[4] = node; }} className={`border-l-2 pl-2 transition-shadow ${targetClass(4)}`}><div className="mb-2 flex justify-between font-mono text-[9px] font-semibold"><span>INGREDIENTS</span><span className="opacity-50">FOOD-PARSER-APP</span></div><div className="divide-y divide-background/10 rounded-md border border-background/15">{[["Chicken", "safe", "text-success"], ["Pea Protein", "watch", "text-warning"], ["Propylene Glycol", "risk", "text-danger"]].map(([name,label,color]) => <div key={name} className="flex justify-between p-2.5 text-xs"><span>{name}</span><b className={color}>{label}</b></div>)}</div></section>
-        <section ref={(node) => { targetRefs.current[5] = node; }} className={`rounded-md border-l-2 bg-primary p-3 text-primary-foreground transition-shadow ${targetClass(5)}`}><div className="flex items-center gap-1.5 font-mono text-[9px] font-bold"><Bot className="h-3 w-3" /> AI SWAP</div><p className="mt-2 text-xs font-medium">Try Orijen Original — 32% less filler at a similar price.</p><div className="mt-3 flex items-center justify-between border-t border-primary-foreground/20 pt-2 text-xs"><b>Orijen Original</b><span>$24.99 · 8.4 B+</span></div></section>
-        <section ref={(node) => { targetRefs.current[6] = node; }} className={`rounded-md border-l-2 bg-foreground p-3 text-background transition-shadow ${targetClass(6)}`}><div className="flex items-center gap-1.5 font-mono text-[9px] font-bold"><Package className="h-3 w-3" /> MOBILE PACKAGE</div><p className="mt-2 text-xs font-medium">Capacitor wrapper queued for iOS + Android.</p><div className="mt-3 flex items-center gap-2 border-t border-background/15 pt-2 text-[10px] opacity-70"><Smartphone className="h-3 w-3" /> APP WRAPPER</div></section>
-      </div>
+      <h1>
+        <span className="block font-serif text-sm font-semibold leading-none text-primary">
+          BLACK
+        </span>
+        <span className="mt-1 block font-mono text-[7px] tracking-[0.28em] text-muted-foreground">
+          BUILDER
+        </span>
+      </h1>
     </div>
   );
 }
 
 function BlackBuilder() {
-  const [messages, setMessages] = useState(initialMessages);
-  const [selectedAgent, setSelectedAgent] = useState(4);
+  const session = useSession();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [selectedAgentIndex, setSelectedAgentIndex] = useState(0);
   const [view, setView] = useState<"desktop" | "mobile">("desktop");
-  const [inspect, setInspect] = useState(false);
-  const [building, setBuilding] = useState(false);
-  const [mobilePanel, setMobilePanel] = useState<"chat" | "agents" | "preview">("preview");
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const workspaceRef = useRef<HTMLDivElement>(null);
-  const sourceRefs = useRef<(HTMLElement | null)[]>([]);
-  const targetRefs = useRef<(HTMLElement | null)[]>([]);
+  const [mobilePanel, setMobilePanel] = useState<"chat" | "agents" | "preview">("chat");
+
+  useEffect(() => {
+    if (session === null) navigate({ to: "/login" });
+  }, [session, navigate]);
+
+  const runsQuery = useQuery({
+    queryKey: ["runs"],
+    queryFn: () => listRuns(),
+    enabled: !!session,
+  });
+
+  useEffect(() => {
+    if (!selectedRunId && runsQuery.data && runsQuery.data.length > 0) {
+      setSelectedRunId(runsQuery.data[0]!.id);
+    }
+  }, [runsQuery.data, selectedRunId]);
+
+  const runQuery = useQuery({
+    queryKey: ["run", selectedRunId],
+    queryFn: () => getRun({ data: { runId: selectedRunId! } }),
+    enabled: !!selectedRunId,
+    refetchInterval: 5000,
+  });
+
+  const createRunMutation = useMutation({
+    mutationFn: (prompt: string) => createRun({ data: { prompt } }),
+    onSuccess: (run) => {
+      queryClient.invalidateQueries({ queryKey: ["runs"] });
+      setSelectedRunId(run.id);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to start a new run.");
+    },
+  });
 
   const sendMessage = ({ text }: { text: string }) => {
     const value = text.trim();
     if (!value) return;
-    setMessages((current) => [...current, { role: "user", text: value }, { role: "assistant", text: "Request routed to **FIXER**. The focused demo change is now queued for verification." }]);
+    createRunMutation.mutate(value);
   };
-  const simulateBuild = () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    setBuilding(true);
-    timeoutRef.current = setTimeout(() => setBuilding(false), 1800);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate({ to: "/login" });
   };
+
+  const orderedRuns = useMemo(() => [...(runsQuery.data ?? [])].reverse(), [runsQuery.data]);
+
+  const stagesByAgent = useMemo(() => {
+    const map = new Map<AgentType, RunDetail["stages"][number]>();
+    for (const stage of runQuery.data?.stages ?? []) map.set(stage.agent, stage);
+    return map;
+  }, [runQuery.data]);
+
+  const logsByStage = useMemo(() => {
+    const map = new Map<string, RunDetail["logs"]>();
+    for (const log of runQuery.data?.logs ?? []) {
+      if (!log.stage_id) continue;
+      const list = map.get(log.stage_id) ?? [];
+      list.push(log);
+      map.set(log.stage_id, list);
+    }
+    return map;
+  }, [runQuery.data]);
+
+  const doneCount = [...stagesByAgent.values()].filter((stage) => stage.status === "passed").length;
+  const selectedRun = runQuery.data?.run;
+
+  if (session === undefined) {
+    return (
+      <main className="flex h-dvh items-center justify-center bg-background text-foreground">
+        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+      </main>
+    );
+  }
+  if (session === null) return null;
 
   return (
     <main className="flex h-dvh min-h-[620px] flex-col overflow-hidden bg-background text-foreground">
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-card px-3">
         <BrandMark />
         <div className="hidden h-4 w-px bg-border sm:block" />
-        <div className="hidden min-w-0 sm:block"><p className="truncate font-mono text-[10px] text-muted-foreground">FRANKENSWARM / dog-food-scanner</p></div>
-        <div className="ml-auto hidden items-center gap-2 md:flex"><span className="flex items-center gap-1.5 font-mono text-[9px] text-success"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" /> SWARM LIVE</span><span className="border border-border px-2 py-1 font-mono text-[9px] text-muted-foreground">QWEN2.5-CODER:32B</span></div>
-        <Button size="sm" onClick={simulateBuild} disabled={building}>{building ? <><CircleDot className="animate-spin" /> Building</> : <><Rocket /> Ship</>}</Button>
+        <div className="hidden min-w-0 flex-1 sm:block">
+          <p className="truncate font-mono text-[10px] text-muted-foreground">
+            {selectedRun ? selectedRun.prompt : "no active run"}
+          </p>
+        </div>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <span className="hidden items-center gap-1.5 font-mono text-[9px] text-success md:flex">
+            <span className="h-1.5 w-1.5 rounded-full bg-success" /> SUPABASE CONNECTED
+          </span>
+          <Button size="sm" variant="ghost" onClick={handleSignOut}>
+            <LogOut className="h-3.5 w-3.5" /> Sign out
+          </Button>
+        </div>
       </header>
 
-      <nav className="grid h-10 shrink-0 grid-cols-3 border-b border-border lg:hidden">{(["chat","agents","preview"] as const).map((item) => <Button key={item} variant="ghost" className={`h-10 rounded-none font-mono text-[9px] uppercase ${mobilePanel === item ? "border-b border-primary text-primary" : "text-muted-foreground"}`} onClick={() => setMobilePanel(item)}>{item}</Button>)}</nav>
+      <nav className="grid h-10 shrink-0 grid-cols-3 border-b border-border lg:hidden">
+        {(["chat", "agents", "preview"] as const).map((item) => (
+          <Button
+            key={item}
+            variant="ghost"
+            className={`h-10 rounded-none font-mono text-[9px] uppercase ${mobilePanel === item ? "border-b border-primary text-primary" : "text-muted-foreground"}`}
+            onClick={() => setMobilePanel(item)}
+          >
+            {item}
+          </Button>
+        ))}
+      </nav>
 
-      <div ref={workspaceRef} className="relative min-h-0 flex-1 lg:grid lg:grid-cols-[minmax(280px,22%)_minmax(310px,25%)_1fr]">
-        <ConnectionWires selected={selectedAgent} containerRef={workspaceRef} sourceRefs={sourceRefs} targetRefs={targetRefs} />
-        <section className={`${mobilePanel === "chat" ? "flex" : "hidden"} h-full min-h-0 flex-col border-r border-border bg-panel lg:flex`}>
-          <div className="flex h-9 shrink-0 items-center justify-between border-b border-border px-3"><span className="font-mono text-[9px] font-semibold">CHAT / EDIT</span><span className="font-mono text-[8px] text-muted-foreground">MASON ROUTING</span></div>
-          <Conversation className="min-h-0"><ConversationContent className="gap-4 p-3">{messages.map((message, index) => <Message from={message.role} key={`${message.role}-${index}`} className="max-w-full"><div className="mb-1 font-mono text-[8px] uppercase text-muted-foreground">{message.role === "user" ? "you" : "black builder"} · 09:{41 + index}</div><MessageContent className={message.role === "user" ? "border border-border bg-secondary px-3 py-2 text-xs" : "text-xs leading-relaxed"}><MessageResponse>{message.text}</MessageResponse></MessageContent></Message>)}</ConversationContent></Conversation>
-          <div className="border-t border-border p-2"><div className="mb-2 flex items-start gap-2 border border-primary/40 bg-primary/5 p-2"><Eye className="mt-0.5 h-3 w-3 text-primary"/><div className="min-w-0"><p className="font-mono text-[8px] text-primary">EDITING CONTEXT</p><p className="truncate text-[10px]">result-card · ResultCard.tsx</p></div><X className="ml-auto h-3 w-3 text-muted-foreground" /></div><PromptInput onSubmit={sendMessage} className="[&_textarea]:min-h-16"><PromptInputTextarea placeholder="Tell the swarm what to build…" autoFocus /><PromptInputFooter className="justify-between"><span className="font-mono text-[8px] text-muted-foreground">repo-first · no full rebuild</span><PromptInputSubmit status="ready" /></PromptInputFooter></PromptInput></div>
+      <div className="relative min-h-0 flex-1 lg:grid lg:grid-cols-[minmax(280px,22%)_minmax(310px,25%)_1fr]">
+        <section
+          className={`${mobilePanel === "chat" ? "flex" : "hidden"} h-full min-h-0 flex-col border-r border-border bg-panel lg:flex`}
+        >
+          <div className="flex h-9 shrink-0 items-center justify-between border-b border-border px-3">
+            <span className="font-mono text-[9px] font-semibold">RUNS</span>
+            <span className="font-mono text-[8px] text-muted-foreground">
+              {orderedRuns.length} TOTAL
+            </span>
+          </div>
+          <Conversation className="min-h-0">
+            <ConversationContent className="gap-4 p-3">
+              {orderedRuns.length === 0 && (
+                <Message from="assistant" className="max-w-full">
+                  <div className="mb-1 font-mono text-[8px] uppercase text-muted-foreground">
+                    black builder
+                  </div>
+                  <MessageContent className="text-xs leading-relaxed">
+                    <MessageResponse>
+                      Describe the app you want built. Submitting a prompt creates a run and queues
+                      all seven agents — PLANNER through APP WRAPPER.
+                    </MessageResponse>
+                  </MessageContent>
+                </Message>
+              )}
+              {orderedRuns.map((run) => (
+                <div
+                  key={run.id}
+                  onClick={() => setSelectedRunId(run.id)}
+                  className={`cursor-pointer rounded-sm ${selectedRunId === run.id ? "ring-1 ring-primary/50" : ""}`}
+                >
+                  <Message from="user" className="max-w-full">
+                    <div className="mb-1 font-mono text-[8px] uppercase text-muted-foreground">
+                      you ·{" "}
+                      {new Date(run.created_at ?? Date.now()).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </div>
+                    <MessageContent className="border border-border bg-secondary px-3 py-2 text-xs">
+                      <MessageResponse>{run.prompt}</MessageResponse>
+                    </MessageContent>
+                  </Message>
+                  <Message from="assistant" className="max-w-full">
+                    <div className="mb-1 font-mono text-[8px] uppercase text-muted-foreground">
+                      black builder
+                    </div>
+                    <MessageContent className="text-xs leading-relaxed">
+                      <MessageResponse>{runStatusLine(run)}</MessageResponse>
+                    </MessageContent>
+                  </Message>
+                </div>
+              ))}
+            </ConversationContent>
+          </Conversation>
+          <div className="border-t border-border p-2">
+            <PromptInput onSubmit={sendMessage} className="[&_textarea]:min-h-16">
+              <PromptInputTextarea placeholder="Tell the swarm what to build…" autoFocus />
+              <PromptInputFooter className="justify-between">
+                <span className="font-mono text-[8px] text-muted-foreground">
+                  one prompt · one run · seven agents
+                </span>
+                <PromptInputSubmit
+                  status={createRunMutation.isPending ? "submitted" : "ready"}
+                  disabled={createRunMutation.isPending}
+                />
+              </PromptInputFooter>
+            </PromptInput>
+          </div>
         </section>
 
-        <section className={`${mobilePanel === "agents" ? "flex" : "hidden"} h-full min-h-0 flex-col border-r border-border lg:flex`}>
-          <div className="border-b border-border p-3"><div className="flex items-center justify-between"><span className="font-mono text-[9px] font-semibold">SWARM · 7 AGENTS</span><span className="font-mono text-[9px] text-warning">5 / 7 ACTIVE</span></div><div className="mt-2 h-1 overflow-hidden bg-muted"><div className="h-full w-[71%] bg-primary" /></div></div>
-          <div className="min-h-0 flex-1 overflow-y-auto">{agents.map((agent, index) => <AgentCard key={agent.name} agent={agent} selected={selectedAgent === index} onClick={() => setSelectedAgent(index)} sourceRef={(node) => { sourceRefs.current[index] = node; }} />)}</div>
-          <div className="border-t border-border bg-card p-3"><div className="flex justify-between font-mono text-[9px]"><span>INSPECTOR</span><span className="text-warning">92% COMPLIANCE</span></div><div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 text-success" /> manifest locked · 1 drift flagged</div></div>
+        <section
+          className={`${mobilePanel === "agents" ? "flex" : "hidden"} h-full min-h-0 flex-col border-r border-border lg:flex`}
+        >
+          <div className="border-b border-border p-3">
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[9px] font-semibold">SWARM · 7 AGENTS</span>
+              <span className="font-mono text-[9px] text-warning">
+                {selectedRun ? `${doneCount} / 7 DONE` : "NO RUN SELECTED"}
+              </span>
+            </div>
+            <div className="mt-2 h-1 overflow-hidden bg-muted">
+              <div
+                className="h-full bg-primary transition-all"
+                style={{ width: selectedRun ? `${(doneCount / 7) * 100}%` : "0%" }}
+              />
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {selectedRun ? (
+              agents.map((catalog, index) => {
+                const stage = stagesByAgent.get(catalog.id);
+                return (
+                  <StageCard
+                    key={catalog.id}
+                    catalog={catalog}
+                    stage={stage}
+                    logs={stage ? (logsByStage.get(stage.id) ?? []) : []}
+                    selected={selectedAgentIndex === index}
+                    onClick={() => setSelectedAgentIndex(index)}
+                  />
+                );
+              })
+            ) : (
+              <div className="p-4 text-xs text-muted-foreground">
+                Start a run from the chat panel to see the swarm here.
+              </div>
+            )}
+          </div>
         </section>
 
-        <section className={`${mobilePanel === "preview" ? "flex" : "hidden"} h-full min-h-0 flex-col bg-muted/30 lg:flex`}>
-          <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border bg-card px-3"><span className="font-mono text-[9px] font-semibold">PREVIEW</span><span className="font-mono text-[8px] text-muted-foreground">dog-food-scanner</span><span className="ml-auto flex items-center gap-1"><Button size="icon-sm" variant={view === "desktop" ? "secondary" : "ghost"} onClick={() => setView("desktop")} title="Desktop preview"><Monitor /></Button><Button size="icon-sm" variant={view === "mobile" ? "secondary" : "ghost"} onClick={() => setView("mobile")} title="Mobile preview"><Smartphone /></Button><Button size="icon-sm" variant={inspect ? "secondary" : "ghost"} onClick={() => setInspect(!inspect)} title="Inspect elements"><PanelTop /></Button><Button size="icon-sm" variant="ghost" title="Expand preview"><Maximize2 /></Button></span></div>
-          <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-5"><div className={`${view === "mobile" ? "max-w-[390px]" : "max-w-[760px]"} mx-auto min-h-full overflow-hidden rounded-md border border-border shadow-2xl transition-[max-width] duration-300`}><KibblePreview inspect={inspect} selected={selectedAgent} targetRefs={targetRefs} /></div></div>
-          <footer className="flex h-8 shrink-0 items-center gap-2 border-t border-border bg-card px-3 font-mono text-[8px] text-muted-foreground"><Check className="h-3 w-3 text-success" /> build_output/ ready <span className="ml-auto text-success">HOT RELOAD ON</span></footer>
+        <section
+          className={`${mobilePanel === "preview" ? "flex" : "hidden"} h-full min-h-0 flex-col bg-muted/30 lg:flex`}
+        >
+          <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
+            <span className="font-mono text-[9px] font-semibold">PREVIEW</span>
+            <span className="ml-auto flex items-center gap-1">
+              <Button
+                size="icon-sm"
+                variant={view === "desktop" ? "secondary" : "ghost"}
+                onClick={() => setView("desktop")}
+                title="Desktop preview"
+              >
+                <Monitor />
+              </Button>
+              <Button
+                size="icon-sm"
+                variant={view === "mobile" ? "secondary" : "ghost"}
+                onClick={() => setView("mobile")}
+                title="Mobile preview"
+              >
+                <Smartphone />
+              </Button>
+              {selectedRun?.web_url && (
+                <a
+                  href={selectedRun.web_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="ml-1 flex items-center gap-1 font-mono text-[9px] text-primary"
+                >
+                  <ExternalLink className="h-3 w-3" /> open
+                </a>
+              )}
+            </span>
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-5">
+            <div
+              className={`${view === "mobile" ? "max-w-[390px]" : "max-w-[760px]"} mx-auto h-full transition-[max-width] duration-300`}
+            >
+              {selectedRun?.web_url ? (
+                <iframe
+                  src={selectedRun.web_url}
+                  title="Build preview"
+                  className="h-full w-full rounded-md border border-border bg-background shadow-2xl"
+                />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border p-6 text-center">
+                  <p className="text-sm font-semibold">
+                    {selectedRun ? "No preview yet" : "No active run"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedRun
+                      ? "PUBLISHER will attach a live preview URL once the build is deployed."
+                      : "Submit a prompt in the chat panel to start a run."}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         </section>
       </div>
     </main>

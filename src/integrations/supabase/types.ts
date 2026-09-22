@@ -14,7 +14,207 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      artifacts: {
+        Row: {
+          id: string
+          kind: Database["public"]["Enums"]["artifact_kind"]
+          run_id: string
+          storage_path: string
+        }
+        Insert: {
+          id?: string
+          kind: Database["public"]["Enums"]["artifact_kind"]
+          run_id: string
+          storage_path: string
+        }
+        Update: {
+          id?: string
+          kind?: Database["public"]["Enums"]["artifact_kind"]
+          run_id?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "artifacts_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      run_logs: {
+        Row: {
+          id: string
+          level: Database["public"]["Enums"]["log_level"]
+          message: string
+          run_id: string
+          stage_id: string | null
+          ts: string | null
+        }
+        Insert: {
+          id?: string
+          level?: Database["public"]["Enums"]["log_level"]
+          message: string
+          run_id: string
+          stage_id?: string | null
+          ts?: string | null
+        }
+        Update: {
+          id?: string
+          level?: Database["public"]["Enums"]["log_level"]
+          message?: string
+          run_id?: string
+          stage_id?: string | null
+          ts?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "run_logs_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "run_logs_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "run_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      run_stages: {
+        Row: {
+          agent: Database["public"]["Enums"]["agent_type"]
+          attempt: number | null
+          branch: string | null
+          ended_at: string | null
+          id: string
+          run_id: string
+          started_at: string | null
+          status: Database["public"]["Enums"]["stage_status"]
+          summary: string | null
+        }
+        Insert: {
+          agent: Database["public"]["Enums"]["agent_type"]
+          attempt?: number | null
+          branch?: string | null
+          ended_at?: string | null
+          id?: string
+          run_id: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["stage_status"]
+          summary?: string | null
+        }
+        Update: {
+          agent?: Database["public"]["Enums"]["agent_type"]
+          attempt?: number | null
+          branch?: string | null
+          ended_at?: string | null
+          id?: string
+          run_id?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["stage_status"]
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "run_stages_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      runs: {
+        Row: {
+          aab_path: string | null
+          cost_usd: number | null
+          created_at: string | null
+          current_stage: Database["public"]["Enums"]["agent_type"] | null
+          finished_at: string | null
+          id: string
+          input_repo_url: string | null
+          prompt: string
+          status: Database["public"]["Enums"]["run_status"]
+          user_id: string
+          web_url: string | null
+        }
+        Insert: {
+          aab_path?: string | null
+          cost_usd?: number | null
+          created_at?: string | null
+          current_stage?: Database["public"]["Enums"]["agent_type"] | null
+          finished_at?: string | null
+          id?: string
+          input_repo_url?: string | null
+          prompt: string
+          status?: Database["public"]["Enums"]["run_status"]
+          user_id: string
+          web_url?: string | null
+        }
+        Update: {
+          aab_path?: string | null
+          cost_usd?: number | null
+          created_at?: string | null
+          current_stage?: Database["public"]["Enums"]["agent_type"] | null
+          finished_at?: string | null
+          id?: string
+          input_repo_url?: string | null
+          prompt?: string
+          status?: Database["public"]["Enums"]["run_status"]
+          user_id?: string
+          web_url?: string | null
+        }
+        Relationships: []
+      }
+      sources: {
+        Row: {
+          commit_sha: string | null
+          decision: Database["public"]["Enums"]["decision_type"]
+          function_key: string
+          id: string
+          license_spdx: string | null
+          reason: string | null
+          ref: string | null
+          run_id: string
+          source_type: Database["public"]["Enums"]["source_type"]
+        }
+        Insert: {
+          commit_sha?: string | null
+          decision: Database["public"]["Enums"]["decision_type"]
+          function_key: string
+          id?: string
+          license_spdx?: string | null
+          reason?: string | null
+          ref?: string | null
+          run_id: string
+          source_type: Database["public"]["Enums"]["source_type"]
+        }
+        Update: {
+          commit_sha?: string | null
+          decision?: Database["public"]["Enums"]["decision_type"]
+          function_key?: string
+          id?: string
+          license_spdx?: string | null
+          reason?: string | null
+          ref?: string | null
+          run_id?: string
+          source_type?: Database["public"]["Enums"]["source_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sources_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +223,26 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      agent_type:
+        | "planner"
+        | "scavenger"
+        | "builder"
+        | "stitcher"
+        | "fixer"
+        | "publisher"
+        | "wrapper"
+      artifact_kind:
+        | "spec"
+        | "manifest"
+        | "tests"
+        | "notices"
+        | "report"
+        | "aab"
+      decision_type: "accepted" | "rejected"
+      log_level: "info" | "warn" | "error"
+      run_status: "pending" | "running" | "passed" | "failed"
+      source_type: "base" | "registry" | "npm" | "repo" | "scratch"
+      stage_status: "pending" | "running" | "passed" | "failed" | "escalated"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +369,22 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      agent_type: [
+        "planner",
+        "scavenger",
+        "builder",
+        "stitcher",
+        "fixer",
+        "publisher",
+        "wrapper",
+      ],
+      artifact_kind: ["spec", "manifest", "tests", "notices", "report", "aab"],
+      decision_type: ["accepted", "rejected"],
+      log_level: ["info", "warn", "error"],
+      run_status: ["pending", "running", "passed", "failed"],
+      source_type: ["base", "registry", "npm", "repo", "scratch"],
+      stage_status: ["pending", "running", "passed", "failed", "escalated"],
+    },
   },
 } as const
