@@ -269,7 +269,7 @@ Resolve these with the user before deep implementation:
 1. Which high-reasoning model powers PLANNER? (Claude 4 Opus, o3, Gemini 2.5 Pro, etc.)
 2. ~~Which coding-agent engine runs the six coder agents?~~ **Decided:** Claude Agent SDK / Claude Code, one throwaway sandbox (E2B or Daytona) per job. See `roadmap.md` for rationale — decided on desk research rather than a formal spike against OpenHands, since standing up OpenHands' own backend just to confirm the research would have cost real infrastructure for no material benefit to the decision.
 3. Mobile target for APP WRAPPER (Capacitor, React Native, Flutter, native iOS/Android, PWA wrapper)
-4. Hosting/preview target for web and mobile outputs (Vercel, Netlify, self-hosted, app stores)
+4. ~~Hosting/preview target for web and mobile outputs (Vercel, Netlify, self-hosted, app stores)~~ **Decided:** Vercel, for PUBLISHER's per-run wildcard-subdomain web previews. Cost is a wash (both have usable free tiers), but Vercel's wildcard-subdomain/multi-tenant routing is the more mature, better-documented path for this app's exact need — one auto-provisioned URL per generated app, repeatedly, at build time. Netlify shipped an equivalent capability more recently and it's less proven for this pattern. The exact provisioning mechanism (API calls, DNS/cert automation) is still open — see `docs/agent-contracts.md`.
 5. Auth providers beyond email + Google
 6. GitHub integration: fine-grained token scopes, repo cloning, PR creation
 
