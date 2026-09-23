@@ -1,9 +1,18 @@
 import type { ComponentType } from "react";
 import { BrainCircuit, GitBranch, Hammer, Package, Rocket, Search, Wrench } from "lucide-react";
-import type { Database } from "@/integrations/supabase/types";
 
-export type AgentType = Database["public"]["Enums"]["agent_type"];
-export type StageStatus = Database["public"]["Enums"]["stage_status"];
+// Local type definitions until the Supabase schema is created and types are regenerated.
+// These mirror the agent_type and stage_status enums in the database.
+export type AgentType =
+  | "planner"
+  | "scavenger"
+  | "builder"
+  | "stitcher"
+  | "fixer"
+  | "publisher"
+  | "wrapper";
+
+export type StageStatus = "pending" | "running" | "passed" | "failed" | "escalated";
 
 export type AgentIcon = ComponentType<{
   className?: string;

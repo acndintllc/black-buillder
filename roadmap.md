@@ -10,6 +10,7 @@
 - Confirmed APP-WRAPPER stays as a distinct agent rather than folding mobile output into the original six.
 - Clarified build pipeline: SCAVENGER finds repos → BUILDER strips components → STITCHER assembles one repo → FIXER repairs → PUBLISHER deploys → APP-WRAPPER packages mobile.
 - Prepared `HANDOFF.md` and centralized agent definitions in `src/lib/agents.ts`.
+- Added `/privacy` and `/terms` pages with SEO meta and login-page footer links.
 
 ## In progress
 - Frontend handoff complete; backend build is intentionally outside this Lovable project and will be continued in Claude Code.
