@@ -17,7 +17,7 @@ type Provider = "anthropic" | "openai" | "xai" | "dashscope";
 // One role per agent — lets a private/self-hosted deployment independently
 // swap the model AND effort for each of the seven agents (hosted/consumer
 // use never touches these; the default mix below is what they get).
-type Role = "planner" | "scavenger" | "builder" | "stitcher" | "fixer" | "publisher" | "app_wrapper";
+type Role = "planner" | "scavenger" | "builder" | "stitcher" | "fixer" | "publisher" | "wrapper";
 
 // Defaults: PLANNER/FIXER/PUBLISHER/APP WRAPPER on Fable 5.1 (same price as
 // the prior gpt-6-astra pick, $10/$50, ahead of it on the Coding Agent Index
@@ -34,7 +34,7 @@ const ROLE_DEFAULTS: Record<Role, string> = {
   stitcher: "dashscope:qwen3.8-max",
   fixer: "anthropic:claude-fable-5-1",
   publisher: "anthropic:claude-fable-5-1",
-  app_wrapper: "anthropic:claude-fable-5-1",
+  wrapper: "anthropic:claude-fable-5-1",
 };
 
 const ROLE_ENV_VAR: Record<Role, string> = {
@@ -44,7 +44,7 @@ const ROLE_ENV_VAR: Record<Role, string> = {
   stitcher: "LLM_ROLE_STITCHER",
   fixer: "LLM_ROLE_FIXER",
   publisher: "LLM_ROLE_PUBLISHER",
-  app_wrapper: "LLM_ROLE_APP_WRAPPER",
+  wrapper: "LLM_ROLE_WRAPPER",
 };
 
 // Anthropic-only: output_config.effort sent on the request for roles that
@@ -69,7 +69,7 @@ const ROLE_EFFORT_ENV_VAR: Record<Role, string> = {
   stitcher: "LLM_ROLE_STITCHER_EFFORT",
   fixer: "LLM_ROLE_FIXER_EFFORT",
   publisher: "LLM_ROLE_PUBLISHER_EFFORT",
-  app_wrapper: "LLM_ROLE_APP_WRAPPER_EFFORT",
+  wrapper: "LLM_ROLE_WRAPPER_EFFORT",
 };
 
 // $ per million tokens, [input, output]. Claude entries verified against
@@ -259,7 +259,7 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Invalid JSON body" }, 400);
   }
 
-  const VALID_ROLES: Role[] = ["planner", "scavenger", "builder", "stitcher", "fixer", "publisher", "app_wrapper"];
+  const VALID_ROLES: Role[] = ["planner", "scavenger", "builder", "stitcher", "fixer", "publisher", "wrapper"];
   if (!body.role || !VALID_ROLES.includes(body.role)) {
     return jsonResponse({ error: `body.role must be one of ${VALID_ROLES.map((r) => `"${r}"`).join(" | ")}` }, 400);
   }
