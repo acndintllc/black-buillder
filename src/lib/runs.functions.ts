@@ -1,9 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import type { Database } from "@/integrations/supabase/types";
 
-type AgentType = Database["public"]["Enums"]["agent_type"];
+// Local type definition until the Supabase schema is created and types are regenerated.
+// Mirrors the agent_type enum and lets the server functions type-check before codegen.
+type AgentType =
+  | "planner"
+  | "scavenger"
+  | "builder"
+  | "stitcher"
+  | "fixer"
+  | "publisher"
+  | "wrapper";
 
 // Fixed pipeline order — must match src/lib/agents.ts.
 const PIPELINE_STAGES: AgentType[] = [
