@@ -21,11 +21,14 @@ type Role = "planner" | "coder" | "coder_high" | "coder_max" | "low_cost";
 // output, so they get a stronger model than the other coder-role agents.
 // "coder_max" is PUBLISHER only: the last of the three stages the org has
 // called make-or-break for the whole app, deliberately set above coder_high.
+// planner/coder_high/coder_max all route to Fable 5.1: same per-token price
+// as gpt-6-astra ($10/$50) and ahead of it on the Coding Agent Index (70 vs
+// 67); ahead of Opus 5.5 too, at 2.5x Opus 5.5's price for planner/coder_max.
 const ROLE_DEFAULTS: Record<Role, string> = {
-  planner: "anthropic:claude-opus-5-5",
+  planner: "anthropic:claude-fable-5-1",
   coder: "dashscope:qwen3.8-max",
-  coder_high: "openai:gpt-6-astra",
-  coder_max: "anthropic:claude-opus-5-5",
+  coder_high: "anthropic:claude-fable-5-1",
+  coder_max: "anthropic:claude-fable-5-1",
   low_cost: "dashscope:qwen3.5-flash",
 };
 
@@ -38,8 +41,10 @@ const ROLE_ENV_VAR: Record<Role, string> = {
 };
 
 // Anthropic-only: output_config.effort sent on the request for roles that
-// need it. Opus 5.5 defaults to "medium" if omitted — both roles below need
-// "max" set explicitly. Not env-overridable (kept simple; revisit if a role
+// need it. Fable 5.1 defaults to "high" if omitted; planner/coder_max are
+// bumped to "max" explicitly since they're the top tier. coder_high is left
+// at the default "high" (not set here) — FIXER/APP WRAPPER, not bumped
+// further unless asked. Not env-overridable (kept simple; revisit if a role
 // needs per-deploy tuning).
 const ROLE_EFFORT: Partial<Record<Role, string>> = {
   planner: "max",
