@@ -78,7 +78,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 **Inputs:** FIXER's passing branch and tests artifact; PLANNER's spec (app name/description for the PR). LLM role: `coder` (deploy/PR work routinely requires reading and fixing build/deploy config, not just templated text).
 
-**Outputs:** pushes the branch and opens a PR; deploys a web preview under the project's wildcard-subdomain scheme on Vercel; sets `runs.web_url` (PUBLISHER is its sole writer) once live; an `artifacts` row `kind="report"` (PR URL, deployment URL, build log excerpt). `summary` states the PR and preview URLs.
+**Outputs:** pushes the branch and opens a PR; deploys a web preview to Netlify (automated deploy-subdomain per app); sets `runs.web_url` (PUBLISHER is its sole writer) once live; an `artifacts` row `kind="report"` (PR URL, deployment URL, build log excerpt). `summary` states the PR and preview URLs.
 
 **Success criteria:** PR is open against the target repo/branch; `runs.web_url` returns 2xx and renders the built app (not blank/error); the live deployment matches the exact commit FIXER left passing (no drift).
 
@@ -86,7 +86,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 **Handoff:** APP WRAPPER needs `runs.web_url` (the verified live preview) and the PR/branch reference.
 
-*Open dependency: exact GitHub App permission scopes and the Vercel wildcard-subdomain provisioning mechanism are undecided (HANDOFF.md open decisions #4, #6).*
+*Open dependency: exact GitHub App permission scopes, and the exact Netlify deploy-subdomain provisioning mechanism (platform is decided — see HANDOFF.md #4 — the API-level wiring is not yet built).*
 
 ## 7. APP WRAPPER
 
@@ -107,7 +107,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 ## Open dependencies (aggregated)
 
 - GitHub App permission scopes / repo access model for SCAVENGER, BUILDER, and PUBLISHER (HANDOFF.md #6).
-- Vercel wildcard-subdomain provisioning mechanism for PUBLISHER's web previews (HANDOFF.md #4).
+- Netlify deploy-subdomain provisioning mechanism for PUBLISHER's web previews (platform decided; API-level wiring not yet built — HANDOFF.md #4).
 - Signing-credential storage/provisioning for APP WRAPPER (HANDOFF.md #3).
 - License allow-list/policy SCAVENGER enforces via `license_spdx` (not yet documented anywhere in-repo).
 - Per-stage retry-budget constants (max `attempt` before `failed`) — a harness-level configuration, not a schema field.
