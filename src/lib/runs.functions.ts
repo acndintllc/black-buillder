@@ -27,7 +27,8 @@ const PIPELINE_STAGES: AgentType[] = [
 export const listRuns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
+    const sb = context.supabase as any;
+    const { data, error } = await sb
       .from("runs")
       .select("id, prompt, status, current_stage, web_url, created_at, finished_at")
       .order("created_at", { ascending: false })
@@ -41,7 +42,8 @@ export const createRun = createServerFn({ method: "POST" })
   .validator(z.object({ prompt: z.string().trim().min(1).max(4000) }))
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    const { data: run, error } = await context.supabase
+    const sb = context.supabase as any;
+    const { data: run, error } = await sb
       .from("runs")
       .insert({ user_id: context.userId, prompt: data.prompt })
       .select("id, prompt, status, current_stage, web_url, created_at, finished_at")
@@ -49,7 +51,7 @@ export const createRun = createServerFn({ method: "POST" })
 
     if (error) throw new Error(error.message);
 
-    const { error: stagesError } = await context.supabase
+    const { error: stagesError } = await sb
       .from("run_stages")
       .insert(PIPELINE_STAGES.map((agent) => ({ run_id: run.id, agent })));
 
@@ -62,7 +64,8 @@ export const getRun = createServerFn({ method: "GET" })
   .validator(z.object({ runId: z.string().uuid() }))
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    const { data: run, error } = await context.supabase
+    const sb = context.supabase as any;
+    const { data: run, error } = await sb
       .from("runs")
       .select(
         "id, prompt, status, current_stage, web_url, aab_path, cost_usd, created_at, finished_at",
@@ -72,14 +75,14 @@ export const getRun = createServerFn({ method: "GET" })
 
     if (error) throw new Error(error.message);
 
-    const { data: stages, error: stagesError } = await context.supabase
+    const { data: stages, error: stagesError } = await sb
       .from("run_stages")
       .select("id, agent, status, attempt, branch, summary, started_at, ended_at")
       .eq("run_id", data.runId);
 
     if (stagesError) throw new Error(stagesError.message);
 
-    const { data: logs, error: logsError } = await context.supabase
+    const { data: logs, error: logsError } = await sb
       .from("run_logs")
       .select("id, stage_id, ts, level, message")
       .eq("run_id", data.runId)
