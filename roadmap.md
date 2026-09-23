@@ -17,6 +17,7 @@
 - Decided PLANNER's model: Claude Opus 5.5 (`claude-opus-5-5`) at `effort: max`. Fable 5.1 was ruled out over its separate credit billing.
 - Decided mobile target for APP WRAPPER: Capacitor, wrapping PUBLISHER's exact shipped web app. Signing-credential storage/provisioning remains a separate open question.
 - Decided GitHub access model: a GitHub App (not OAuth App/PAT) with Contents R&W, Pull Requests R&W, org-level Administration (Write, for repo creation), and auto-included Metadata (Read). Code Search API is capped at 10 req/min regardless of auth — a constraint for SCAVENGER's search-retry budget.
+- Decided per-agent model tiering: added a `coder_high` role to `llm-proxy` (defaults to `openai:gpt-6-astra`, deployed) for FIXER and APP WRAPPER specifically — they're the pipeline's two terminal correctness gates with no downstream re-check, so they get a stronger model than the other four coder-role agents (SCAVENGER stays `low_cost`; BUILDER/STITCHER/PUBLISHER stay `coder`).
 
 ## In progress
 - Frontend handoff complete; backend build is intentionally outside this Lovable project and will be continued in Claude Code.

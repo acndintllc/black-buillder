@@ -14,17 +14,22 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 type Provider = "anthropic" | "openai" | "xai" | "dashscope";
-type Role = "planner" | "coder" | "low_cost";
+type Role = "planner" | "coder" | "coder_high" | "low_cost";
 
+// "coder_high" is for the two terminal correctness gates (FIXER, APP WRAPPER
+// — see docs/agent-contracts.md): nothing downstream double-checks their
+// output, so they get a stronger model than the other coder-role agents.
 const ROLE_DEFAULTS: Record<Role, string> = {
   planner: "anthropic:claude-opus-5-5",
   coder: "openai:gpt-6-sol",
+  coder_high: "openai:gpt-6-astra",
   low_cost: "openai:gpt-6-luna",
 };
 
 const ROLE_ENV_VAR: Record<Role, string> = {
   planner: "LLM_ROLE_PLANNER",
   coder: "LLM_ROLE_CODER",
+  coder_high: "LLM_ROLE_CODER_HIGH",
   low_cost: "LLM_ROLE_LOW_COST",
 };
 
@@ -207,8 +212,8 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Invalid JSON body" }, 400);
   }
 
-  if (!body.role || !["planner", "coder", "low_cost"].includes(body.role)) {
-    return jsonResponse({ error: 'body.role must be one of "planner" | "coder" | "low_cost"' }, 400);
+  if (!body.role || !["planner", "coder", "coder_high", "low_cost"].includes(body.role)) {
+    return jsonResponse({ error: 'body.role must be one of "planner" | "coder" | "coder_high" | "low_cost"' }, 400);
   }
   if (!Array.isArray(body.messages) || body.messages.length === 0) {
     return jsonResponse({ error: "body.messages must be a non-empty array" }, 400);
