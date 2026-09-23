@@ -178,6 +178,15 @@ function LoginPage() {
           {googleSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon />}
           Continue with Google
         </Button>
+
+        <footer className="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-1 font-mono text-[9px] uppercase text-muted-foreground">
+          <Link to="/privacy" className="hover:text-foreground">
+            Privacy Policy
+          </Link>
+          <Link to="/terms" className="hover:text-foreground">
+            Terms of Service
+          </Link>
+        </footer>
       </div>
     </main>
   );
