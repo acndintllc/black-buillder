@@ -48,14 +48,17 @@ const ROLE_ENV_VAR: Record<Role, string> = {
 };
 
 // Anthropic-only: output_config.effort sent on the request for roles that
-// need it. Fable 5.1 defaults to "high" if omitted; planner/publisher are
-// bumped to "max" by default since they're the top tier — PUBLISHER, FIXER,
-// and APP WRAPPER are the three stages the org has called make-or-break for
-// the app, and PUBLISHER specifically matches PLANNER's tier. Env-overridable
-// per role (LLM_ROLE_*_EFFORT) same as the model itself, so a private/
-// self-hosted deployment can tune effort independently per agent too.
+// need it. Fable 5.1 defaults to "high" if omitted; planner/fixer/publisher
+// are bumped to "max" by default. FIXER is the last stage that actually
+// judges code correctness — nothing downstream re-checks it, so a missed
+// bug there ships silently, unlike PUBLISHER's more binary/verifiable
+// deploy-succeeded-or-didn't job. APP WRAPPER stays at the "high" default —
+// mobile-only blast radius if it misses something. Env-overridable per role
+// (LLM_ROLE_*_EFFORT) same as the model itself, so a private/self-hosted
+// deployment can tune effort independently per agent too.
 const ROLE_EFFORT_DEFAULTS: Partial<Record<Role, string>> = {
   planner: "max",
+  fixer: "max",
   publisher: "max",
 };
 
