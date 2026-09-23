@@ -1,6 +1,6 @@
 # Agent Contracts — Black Builder Swarm
 
-This document defines the **brain repo contract** for each of the seven agents in the Black Builder pipeline (PLANNER, SCAVENGER, BUILDER, STITCHER, FIXER, PUBLISHER, APP WRAPPER). It is harness-agnostic: it specifies what each agent must consume, produce, and be judged on against the shared Postgres schema (`runs`, `run_stages`, `run_logs`, `artifacts`, `sources`) — not the prompts, tools, or execution framework that implement it. That implementation is deferred to the Phase 1 spike deciding between OpenHands and the Claude Agent SDK. Any future agent implementation, on either harness, must satisfy this contract to be considered done.
+This document defines the **brain repo contract** for each of the seven agents in the Black Builder pipeline (PLANNER, SCAVENGER, BUILDER, STITCHER, FIXER, PUBLISHER, APP WRAPPER). It is harness-agnostic: it specifies what each agent must consume, produce, and be judged on against the shared Postgres schema (`runs`, `run_stages`, `run_logs`, `artifacts`, `sources`) — not the prompts or tools that implement it. The coding-agent engine is decided (Claude Agent SDK / Claude Code, one throwaway sandbox per job — see `roadmap.md`); this document stays engine-agnostic anyway since the contract itself (inputs/outputs/success criteria) shouldn't change if the engine ever does. Any future agent implementation must satisfy this contract to be considered done.
 
 ## Shared conventions (apply to all seven agents)
 

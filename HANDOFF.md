@@ -267,7 +267,7 @@ Important distinction:
 Resolve these with the user before deep implementation:
 
 1. Which high-reasoning model powers PLANNER? (Claude 4 Opus, o3, Gemini 2.5 Pro, etc.)
-2. Which coding-agent engine runs the six coder agents? (Claude Code CLI, OpenHands, custom model + sandbox)
+2. ~~Which coding-agent engine runs the six coder agents?~~ **Decided:** Claude Agent SDK / Claude Code, one throwaway sandbox (E2B or Daytona) per job. See `roadmap.md` for rationale — decided on desk research rather than a formal spike against OpenHands, since standing up OpenHands' own backend just to confirm the research would have cost real infrastructure for no material benefit to the decision.
 3. Mobile target for APP WRAPPER (Capacitor, React Native, Flutter, native iOS/Android, PWA wrapper)
 4. Hosting/preview target for web and mobile outputs (Vercel, Netlify, self-hosted, app stores)
 5. Auth providers beyond email + Google
