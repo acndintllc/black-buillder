@@ -266,12 +266,12 @@ Important distinction:
 
 Resolve these with the user before deep implementation:
 
-1. Which high-reasoning model powers PLANNER? (Claude 4 Opus, o3, Gemini 2.5 Pro, etc.)
+1. ~~Which high-reasoning model powers PLANNER?~~ **Decided:** Claude Opus 5.5 (`claude-opus-5-5`) at `effort: max`, routed via `llm-proxy`'s `planner` role. Fable 5.1 was considered first but ruled out — it requires its own separate credit billing that most users won't have and isn't worth paying for at this stage.
 2. ~~Which coding-agent engine runs the six coder agents?~~ **Decided:** Claude Agent SDK / Claude Code, one throwaway sandbox (E2B or Daytona) per job. See `roadmap.md` for rationale — decided on desk research rather than a formal spike against OpenHands, since standing up OpenHands' own backend just to confirm the research would have cost real infrastructure for no material benefit to the decision.
-3. Mobile target for APP WRAPPER (Capacitor, React Native, Flutter, native iOS/Android, PWA wrapper)
+3. ~~Mobile target for APP WRAPPER~~ **Decided:** Capacitor, wrapping the exact web app PUBLISHER ships (see `docs/agent-contracts.md`). Signing-credential storage/provisioning is a separate, still-open question — Capacitor answers *how* the app is packaged, not *where* keystores/certificates live.
 4. ~~Hosting/preview target for web and mobile outputs (Vercel, Netlify, self-hosted, app stores)~~ **Decided:** Vercel, for PUBLISHER's per-run wildcard-subdomain web previews. Cost is a wash (both have usable free tiers), but Vercel's wildcard-subdomain/multi-tenant routing is the more mature, better-documented path for this app's exact need — one auto-provisioned URL per generated app, repeatedly, at build time. Netlify shipped an equivalent capability more recently and it's less proven for this pattern. The exact provisioning mechanism (API calls, DNS/cert automation) is still open — see `docs/agent-contracts.md`.
 5. Auth providers beyond email + Google
-6. GitHub integration: fine-grained token scopes, repo cloning, PR creation
+6. ~~GitHub integration: fine-grained token scopes, repo cloning, PR creation~~ **Decided:** a GitHub App (not an OAuth App or personal access token), scoped to Contents (Read & Write), Pull Requests (Read & Write), and organization-level Administration (Write, needed for SCAVENGER/BUILDER/PUBLISHER to create repos). Metadata (Read) is auto-included and covers SCAVENGER's public code search. Note for SCAVENGER's search-budget design: GitHub's Code Search API is hard-capped at 10 requests/minute regardless of auth method.
 
 ## 11. Build & verify
 

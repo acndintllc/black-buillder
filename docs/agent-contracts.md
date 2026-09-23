@@ -86,7 +86,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 **Handoff:** APP WRAPPER needs `runs.web_url` (the verified live preview) and the PR/branch reference.
 
-*Open dependency: exact GitHub App permission scopes and the Vercel wildcard-subdomain provisioning mechanism are undecided (HANDOFF.md open decisions #4, #6).*
+*GitHub App scopes are decided (Contents R&W, Pull Requests R&W, org Administration Write, Metadata Read — HANDOFF.md #6). Open dependency: the Vercel wildcard-subdomain provisioning mechanism itself is still undecided (HANDOFF.md #4).*
 
 ## 7. APP WRAPPER
 
@@ -100,14 +100,14 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 **Handoff:** none — APP WRAPPER is the terminal stage. The run is complete once it reaches `status="passed"`; the pipeline runner then sets `runs.status="passed"` and `runs.finished_at`.
 
-*Open dependency: signing-credential storage/provisioning is undecided (HANDOFF.md open decision #3).*
+*Mobile target is decided (Capacitor — HANDOFF.md #3). Open dependency: signing-credential storage/provisioning is still undecided.*
 
 ---
 
 ## Open dependencies (aggregated)
 
-- GitHub App permission scopes / repo access model for SCAVENGER, BUILDER, and PUBLISHER (HANDOFF.md #6).
+- ~~GitHub App permission scopes / repo access model for SCAVENGER, BUILDER, and PUBLISHER~~ **Decided:** GitHub App with Contents R&W, Pull Requests R&W, org-level Administration (Write), Metadata (Read, auto-included) — HANDOFF.md #6.
 - Vercel wildcard-subdomain provisioning mechanism for PUBLISHER's web previews (HANDOFF.md #4).
-- Signing-credential storage/provisioning for APP WRAPPER (HANDOFF.md #3).
+- Signing-credential storage/provisioning for APP WRAPPER (mobile target itself is decided as Capacitor — HANDOFF.md #3).
 - License allow-list/policy SCAVENGER enforces via `license_spdx` (not yet documented anywhere in-repo).
 - Per-stage retry-budget constants (max `attempt` before `failed`) — a harness-level configuration, not a schema field.
