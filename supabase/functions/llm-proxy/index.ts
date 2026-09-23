@@ -21,9 +21,9 @@ type Role = "planner" | "coder" | "coder_high" | "low_cost";
 // output, so they get a stronger model than the other coder-role agents.
 const ROLE_DEFAULTS: Record<Role, string> = {
   planner: "anthropic:claude-opus-5-5",
-  coder: "openai:gpt-6-sol",
+  coder: "dashscope:qwen3.8-max",
   coder_high: "openai:gpt-6-astra",
-  low_cost: "openai:gpt-6-luna",
+  low_cost: "dashscope:qwen3.5-flash",
 };
 
 const ROLE_ENV_VAR: Record<Role, string> = {
@@ -37,7 +37,9 @@ const ROLE_ENV_VAR: Record<Role, string> = {
 // PLACEHOLDERS — verify against platform.claude.com/pricing before relying
 // on tight budget caps for Claude-routed calls. OpenAI/Grok figures below
 // were confirmed against each provider's own current pricing during
-// research; DashScope figures are Alibaba's hosted-API tier pricing.
+// research; DashScope figures are Alibaba's hosted-API tier pricing
+// (qwen3.5-flash and qwen3.8-max verified against Alibaba's own pricing
+// docs and DashScope API reference during this session).
 const PRICING_USD_PER_MILLION: Record<string, [number, number]> = {
   "claude-fable-5-1": [15, 75], // placeholder, unconfirmed
   "claude-opus-5-5": [6, 30], // placeholder, unconfirmed
@@ -49,7 +51,9 @@ const PRICING_USD_PER_MILLION: Record<string, [number, number]> = {
   "grok-4.7": [2, 6], // doubles to [4, 12] above 200K context, not modeled here
   "grok-build-0.1": [0.2, 1.5],
   "qwen3-coder-plus": [0.65, 3.25],
-  "qwen3-max": [2, 6],
+  "qwen3-max": [2, 6], // older generation; kept for reference, superseded by qwen3.8-max below
+  "qwen3.8-max": [2, 6],
+  "qwen3.5-flash": [0.1, 0.4],
 };
 
 function resolveRoleTarget(role: Role): { provider: Provider; model: string } {

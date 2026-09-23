@@ -18,6 +18,7 @@
 - Decided mobile target for APP WRAPPER: Capacitor, wrapping PUBLISHER's exact shipped web app. Signing-credential storage/provisioning remains a separate open question.
 - Decided GitHub access model: a GitHub App (not OAuth App/PAT) with Contents R&W, Pull Requests R&W, org-level Administration (Write, for repo creation), and auto-included Metadata (Read). Code Search API is capped at 10 req/min regardless of auth — a constraint for SCAVENGER's search-retry budget.
 - Decided per-agent model tiering: added a `coder_high` role to `llm-proxy` (defaults to `openai:gpt-6-astra`, deployed) for FIXER and APP WRAPPER specifically — they're the pipeline's two terminal correctness gates with no downstream re-check, so they get a stronger model than the other four coder-role agents (SCAVENGER stays `low_cost`; BUILDER/STITCHER/PUBLISHER stay `coder`).
+- Re-picked the `low_cost` and `coder` role defaults for cheaper, competitive models: `low_cost` (SCAVENGER) now defaults to `dashscope:qwen3.5-flash` ($0.10/$0.40 per million, cheaper than the prior `gpt-6-luna` on output) instead of OpenAI; `coder` (BUILDER/STITCHER/PUBLISHER) now defaults to `dashscope:qwen3.8-max` ($2/$6, vs `gpt-6-sol`'s $2/$10 and well under `claude-sonnet-5`'s $3/$15) — same DashScope endpoint already wired in, model IDs and pricing verified against Alibaba's own docs. `qwen3-coder-plus` ($0.65/$3.25, coding-specialized) is a cheaper alternative for `coder` if we want to optimize further later.
 
 ## In progress
 - Frontend handoff complete; backend build is intentionally outside this Lovable project and will be continued in Claude Code.
@@ -34,3 +35,4 @@
 - Auth providers beyond email + Google.
 - Signing-credential storage/provisioning for APP WRAPPER's Capacitor builds.
 - Vercel wildcard-subdomain provisioning mechanism for PUBLISHER's per-run web previews.
+- Unverified: whether the Claude Agent SDK harness (decided coding-agent engine) can actually drive its reasoning loop on a non-Anthropic model. `coder`/`coder_high`/`low_cost` now route to OpenAI/DashScope models by default — if the SDK can only run Claude models, that's a real conflict with the multi-provider role defaults above and needs resolving before any coder agent is actually built.
