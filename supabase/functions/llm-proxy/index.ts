@@ -14,15 +14,18 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 type Provider = "anthropic" | "openai" | "xai" | "dashscope";
-type Role = "planner" | "coder" | "coder_high" | "low_cost";
+type Role = "planner" | "coder" | "coder_high" | "coder_max" | "low_cost";
 
 // "coder_high" is for the two terminal correctness gates (FIXER, APP WRAPPER
 // — see docs/agent-contracts.md): nothing downstream double-checks their
 // output, so they get a stronger model than the other coder-role agents.
+// "coder_max" is PUBLISHER only: the last of the three stages the org has
+// called make-or-break for the whole app, deliberately set above coder_high.
 const ROLE_DEFAULTS: Record<Role, string> = {
   planner: "anthropic:claude-opus-5-5",
   coder: "dashscope:qwen3.8-max",
   coder_high: "openai:gpt-6-astra",
+  coder_max: "anthropic:claude-opus-5-5",
   low_cost: "dashscope:qwen3.5-flash",
 };
 
@@ -30,21 +33,30 @@ const ROLE_ENV_VAR: Record<Role, string> = {
   planner: "LLM_ROLE_PLANNER",
   coder: "LLM_ROLE_CODER",
   coder_high: "LLM_ROLE_CODER_HIGH",
+  coder_max: "LLM_ROLE_CODER_MAX",
   low_cost: "LLM_ROLE_LOW_COST",
 };
 
-// $ per million tokens, [input, output]. CLAUDE ENTRIES ARE APPROXIMATE
-// PLACEHOLDERS — verify against platform.claude.com/pricing before relying
-// on tight budget caps for Claude-routed calls. OpenAI/Grok figures below
-// were confirmed against each provider's own current pricing during
-// research; DashScope figures are Alibaba's hosted-API tier pricing
-// (qwen3.5-flash and qwen3.8-max verified against Alibaba's own pricing
-// docs and DashScope API reference during this session).
+// Anthropic-only: output_config.effort sent on the request for roles that
+// need it. Opus 5.5 defaults to "medium" if omitted — both roles below need
+// "max" set explicitly. Not env-overridable (kept simple; revisit if a role
+// needs per-deploy tuning).
+const ROLE_EFFORT: Partial<Record<Role, string>> = {
+  planner: "max",
+  coder_max: "max",
+};
+
+// $ per million tokens, [input, output]. Claude entries verified against
+// Anthropic's own current pricing table (see claude-api skill) during this
+// session — no longer placeholders. OpenAI/Grok figures were confirmed
+// against each provider's own current pricing during research; DashScope
+// figures (qwen3.5-flash, qwen3.8-max) verified against Alibaba's own
+// pricing docs and DashScope API reference during this session.
 const PRICING_USD_PER_MILLION: Record<string, [number, number]> = {
-  "claude-fable-5-1": [15, 75], // placeholder, unconfirmed
-  "claude-opus-5-5": [6, 30], // placeholder, unconfirmed
-  "claude-sonnet-5": [3, 15], // placeholder, unconfirmed
-  "claude-haiku-4-5-20251001": [0.8, 4], // placeholder, unconfirmed
+  "claude-fable-5-1": [10, 50],
+  "claude-opus-5-5": [4, 20],
+  "claude-sonnet-5": [2, 10],
+  "claude-haiku-4-5": [1, 5],
   "gpt-6-astra": [10, 50],
   "gpt-6-sol": [2, 10],
   "gpt-6-luna": [0.1, 0.5],
@@ -56,14 +68,14 @@ const PRICING_USD_PER_MILLION: Record<string, [number, number]> = {
   "qwen3.5-flash": [0.1, 0.4],
 };
 
-function resolveRoleTarget(role: Role): { provider: Provider; model: string } {
+function resolveRoleTarget(role: Role): { provider: Provider; model: string; effort?: string } {
   const raw = Deno.env.get(ROLE_ENV_VAR[role]) || ROLE_DEFAULTS[role];
   const [provider, ...modelParts] = raw.split(":");
   const model = modelParts.join(":");
   if (!provider || !model) {
     throw new Error(`Malformed model target for role "${role}": "${raw}". Expected "provider:model".`);
   }
-  return { provider: provider as Provider, model };
+  return { provider: provider as Provider, model, effort: ROLE_EFFORT[role] };
 }
 
 function computeCostUsd(model: string, inputTokens: number, outputTokens: number): number | null {
@@ -90,7 +102,7 @@ type CallResult = {
   output_tokens: number;
 };
 
-async function callAnthropic(model: string, system: string | undefined, messages: ChatMessage[], maxTokens: number): Promise<CallResult> {
+async function callAnthropic(model: string, system: string | undefined, messages: ChatMessage[], maxTokens: number, effort?: string): Promise<CallResult> {
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
 
@@ -106,6 +118,7 @@ async function callAnthropic(model: string, system: string | undefined, messages
       max_tokens: maxTokens,
       system,
       messages,
+      ...(effort ? { output_config: { effort } } : {}),
     }),
   });
 
@@ -183,10 +196,13 @@ async function callProvider(
   system: string | undefined,
   messages: ChatMessage[],
   maxTokens: number,
+  effort?: string,
 ): Promise<CallResult> {
   if (provider === "anthropic") {
-    return callAnthropic(model, system, messages, maxTokens);
+    return callAnthropic(model, system, messages, maxTokens, effort);
   }
+  // effort is an Anthropic-specific output_config field; OpenAI-compatible
+  // endpoints (OpenAI, xAI, DashScope) don't take it, so it's dropped here.
   return callOpenAiCompatible(PROVIDER_BASE_URL[provider], PROVIDER_API_KEY_ENV[provider], model, system, messages, maxTokens);
 }
 
@@ -216,8 +232,8 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Invalid JSON body" }, 400);
   }
 
-  if (!body.role || !["planner", "coder", "coder_high", "low_cost"].includes(body.role)) {
-    return jsonResponse({ error: 'body.role must be one of "planner" | "coder" | "coder_high" | "low_cost"' }, 400);
+  if (!body.role || !["planner", "coder", "coder_high", "coder_max", "low_cost"].includes(body.role)) {
+    return jsonResponse({ error: 'body.role must be one of "planner" | "coder" | "coder_high" | "coder_max" | "low_cost"' }, 400);
   }
   if (!Array.isArray(body.messages) || body.messages.length === 0) {
     return jsonResponse({ error: "body.messages must be a non-empty array" }, 400);
@@ -248,13 +264,14 @@ Deno.serve(async (req: Request) => {
 
   let provider: Provider;
   let model: string;
+  let effort: string | undefined;
   try {
     if (body.model_override) {
       const [p, ...rest] = body.model_override.split(":");
       provider = p as Provider;
       model = rest.join(":");
     } else {
-      ({ provider, model } = resolveRoleTarget(body.role));
+      ({ provider, model, effort } = resolveRoleTarget(body.role));
     }
   } catch (err) {
     return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 400);
@@ -262,7 +279,7 @@ Deno.serve(async (req: Request) => {
 
   let result: CallResult;
   try {
-    result = await callProvider(provider, model, body.system, body.messages, body.max_tokens ?? 4096);
+    result = await callProvider(provider, model, body.system, body.messages, body.max_tokens ?? 4096, effort);
   } catch (err) {
     return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 502);
   }
