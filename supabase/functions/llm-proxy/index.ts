@@ -14,36 +14,62 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 type Provider = "anthropic" | "openai" | "xai" | "dashscope";
-type Role = "planner" | "coder" | "coder_high" | "coder_max" | "low_cost";
+// One role per agent — lets a private/self-hosted deployment independently
+// swap the model AND effort for each of the seven agents (hosted/consumer
+// use never touches these; the default mix below is what they get).
+type Role = "planner" | "scavenger" | "builder" | "stitcher" | "fixer" | "publisher" | "app_wrapper";
 
-// "coder_high" is for the two terminal correctness gates (FIXER, APP WRAPPER
-// — see docs/agent-contracts.md): nothing downstream double-checks their
-// output, so they get a stronger model than the other coder-role agents.
-// "coder_max" is PUBLISHER only: the last of the three stages the org has
-// called make-or-break for the whole app, deliberately set above coder_high.
+// Defaults: PLANNER/FIXER/PUBLISHER/APP WRAPPER on Fable 5.1 (same price as
+// the prior gpt-6-astra pick, $10/$50, ahead of it on the Coding Agent Index
+// 70 vs 67; ahead of Opus 5.5 too, at 2.5x Opus 5.5's price for planner/
+// publisher). SCAVENGER on the cheapest Qwen tier (search/matching, not
+// heavy reasoning). BUILDER/STITCHER on Qwen3.8-Max — checked directly
+// against Opus 5.5 and held up on SWE-bench Pro (real-repo resolution,
+// the closer analog to their actual job) even though Opus led on broader
+// coding benchmarks.
 const ROLE_DEFAULTS: Record<Role, string> = {
-  planner: "anthropic:claude-opus-5-5",
-  coder: "dashscope:qwen3.8-max",
-  coder_high: "openai:gpt-6-astra",
-  coder_max: "anthropic:claude-opus-5-5",
-  low_cost: "dashscope:qwen3.5-flash",
+  planner: "anthropic:claude-fable-5-1",
+  scavenger: "dashscope:qwen3.5-flash",
+  builder: "dashscope:qwen3.8-max",
+  stitcher: "dashscope:qwen3.8-max",
+  fixer: "anthropic:claude-fable-5-1",
+  publisher: "anthropic:claude-fable-5-1",
+  app_wrapper: "anthropic:claude-fable-5-1",
 };
 
 const ROLE_ENV_VAR: Record<Role, string> = {
   planner: "LLM_ROLE_PLANNER",
-  coder: "LLM_ROLE_CODER",
-  coder_high: "LLM_ROLE_CODER_HIGH",
-  coder_max: "LLM_ROLE_CODER_MAX",
-  low_cost: "LLM_ROLE_LOW_COST",
+  scavenger: "LLM_ROLE_SCAVENGER",
+  builder: "LLM_ROLE_BUILDER",
+  stitcher: "LLM_ROLE_STITCHER",
+  fixer: "LLM_ROLE_FIXER",
+  publisher: "LLM_ROLE_PUBLISHER",
+  app_wrapper: "LLM_ROLE_APP_WRAPPER",
 };
 
 // Anthropic-only: output_config.effort sent on the request for roles that
-// need it. Opus 5.5 defaults to "medium" if omitted — both roles below need
-// "max" set explicitly. Not env-overridable (kept simple; revisit if a role
-// needs per-deploy tuning).
-const ROLE_EFFORT: Partial<Record<Role, string>> = {
+// need it. Fable 5.1 defaults to "high" if omitted; planner/fixer/publisher
+// are bumped to "max" by default. FIXER is the last stage that actually
+// judges code correctness — nothing downstream re-checks it, so a missed
+// bug there ships silently, unlike PUBLISHER's more binary/verifiable
+// deploy-succeeded-or-didn't job. APP WRAPPER stays at the "high" default —
+// mobile-only blast radius if it misses something. Env-overridable per role
+// (LLM_ROLE_*_EFFORT) same as the model itself, so a private/self-hosted
+// deployment can tune effort independently per agent too.
+const ROLE_EFFORT_DEFAULTS: Partial<Record<Role, string>> = {
   planner: "max",
-  coder_max: "max",
+  fixer: "max",
+  publisher: "max",
+};
+
+const ROLE_EFFORT_ENV_VAR: Record<Role, string> = {
+  planner: "LLM_ROLE_PLANNER_EFFORT",
+  scavenger: "LLM_ROLE_SCAVENGER_EFFORT",
+  builder: "LLM_ROLE_BUILDER_EFFORT",
+  stitcher: "LLM_ROLE_STITCHER_EFFORT",
+  fixer: "LLM_ROLE_FIXER_EFFORT",
+  publisher: "LLM_ROLE_PUBLISHER_EFFORT",
+  app_wrapper: "LLM_ROLE_APP_WRAPPER_EFFORT",
 };
 
 // $ per million tokens, [input, output]. Claude entries verified against
@@ -75,7 +101,8 @@ function resolveRoleTarget(role: Role): { provider: Provider; model: string; eff
   if (!provider || !model) {
     throw new Error(`Malformed model target for role "${role}": "${raw}". Expected "provider:model".`);
   }
-  return { provider: provider as Provider, model, effort: ROLE_EFFORT[role] };
+  const effort = Deno.env.get(ROLE_EFFORT_ENV_VAR[role]) || ROLE_EFFORT_DEFAULTS[role];
+  return { provider: provider as Provider, model, effort };
 }
 
 function computeCostUsd(model: string, inputTokens: number, outputTokens: number): number | null {
@@ -232,8 +259,9 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Invalid JSON body" }, 400);
   }
 
-  if (!body.role || !["planner", "coder", "coder_high", "coder_max", "low_cost"].includes(body.role)) {
-    return jsonResponse({ error: 'body.role must be one of "planner" | "coder" | "coder_high" | "coder_max" | "low_cost"' }, 400);
+  const VALID_ROLES: Role[] = ["planner", "scavenger", "builder", "stitcher", "fixer", "publisher", "app_wrapper"];
+  if (!body.role || !VALID_ROLES.includes(body.role)) {
+    return jsonResponse({ error: `body.role must be one of ${VALID_ROLES.map((r) => `"${r}"`).join(" | ")}` }, 400);
   }
   if (!Array.isArray(body.messages) || body.messages.length === 0) {
     return jsonResponse({ error: "body.messages must be a non-empty array" }, 400);

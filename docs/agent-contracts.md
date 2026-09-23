@@ -10,7 +10,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 - **`branch`:** each stage records the git branch it worked on/produced in its own `run_stages.branch`, even where by convention it's the same run-scoped branch handed forward by the prior coder stage.
 - **Escalation vs. failure:** `failed` = this stage tried and could not succeed on its own after exhausting its retry budget (a harness-level constant, not specified here); retrying re-runs the same stage. `escalated` = the stage has concluded the problem is outside what it can fix by retrying — it needs a human or a re-run of an earlier stage (most often PLANNER) with new input. `runs.status` has no `escalated` value; an escalated stage leaves `runs.status="running"` (paused) until a human resolves it — the UI must surface escalation from `run_stages.status`, not `runs.status`.
 - **Run-level fields owned outside these contracts:** `runs.current_stage`, `runs.status`, and `runs.finished_at` are sequenced by the pipeline runner that invokes the seven stages in order, not written by the agents themselves. `runs.cost_usd` accrues automatically via `llm-proxy`'s `increment_run_cost` RPC whenever an agent calls the proxy with `run_id` set — agents never write it directly, but every proxy call must include `run_id` for budget enforcement (`runs.budget_usd`) to work. `runs.web_url` and `runs.aab_path` are each owned by exactly one agent (PUBLISHER and APP WRAPPER respectively) as noted below.
-- **LLM routing role** (`llm-proxy`'s `role`: `planner` | `coder` | `coder_high` | `coder_max` | `low_cost`) is listed per agent as a required input; it is routing/cost metadata, not a prompt or tool choice. `coder_high` is for FIXER and APP WRAPPER: they are two of the pipeline's terminal correctness gates (nothing downstream re-checks their output — FIXER is the last chance to catch a bug, APP WRAPPER is the pipeline's final stage), so they route to a stronger model than the other coder-role agents. `coder_max` is PUBLISHER only, one tier above `coder_high` — PUBLISHER, FIXER, and APP WRAPPER are the three stages that make or break the shipped app, and PUBLISHER routes to the exact same model+effort as PLANNER (`claude-opus-5-5` @ `effort: max`, via a separate role so the two can still be tuned independently later without a code change).
+- **LLM routing role** (`llm-proxy`'s `role`: one per agent — `planner` | `scavenger` | `builder` | `stitcher` | `fixer` | `publisher` | `app_wrapper`) is listed per agent as a required input; it is routing/cost metadata, not a prompt or tool choice. Each role has its own default model AND its own default `effort` in `llm-proxy` (both independently env-overridable per role, `LLM_ROLE_*` / `LLM_ROLE_*_EFFORT`) — a private/self-hosted deployment can retune any single agent without touching any other, or the code. Hosted/consumer use never exposes this; the defaults below are what those users get. Current defaults: `planner`, `fixer`, `publisher`, and `app_wrapper` all route to `claude-fable-5-1` — same per-token price as the prior GPT-6-Astra pick ($10/$50) but ahead of it on the Coding Agent Index (70 vs 67), and ahead of the prior `claude-opus-5-5` pick too, at 2.5x Opus 5.5's price. `planner`, `fixer`, and `publisher` additionally default to `effort: max` (Fable 5.1's own default is `high`). FIXER is the last stage that actually judges code correctness — nothing downstream re-checks it, so a missed bug ships silently, which is why it's bumped alongside PLANNER and PUBLISHER. `app_wrapper` stays at the `high` default: a miss there has mobile-only blast radius, not the whole app. `scavenger` defaults to the cheapest Qwen tier (search/matching, not heavy reasoning). `builder`/`stitcher` default to Qwen3.8-Max, checked directly against Opus 5.5 and competitive on SWE-bench Pro (real-repo resolution, the closer analog to their actual job).
 
 ---
 
@@ -28,7 +28,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 ## 2. SCAVENGER
 
-**Inputs:** PLANNER's spec artifact (function_keys + descriptions); `runs.input_repo_url` if present. LLM role: `low_cost`.
+**Inputs:** PLANNER's spec artifact (function_keys + descriptions); `runs.input_repo_url` if present. LLM role: `scavenger`.
 
 **Outputs:** at least one `sources` row per function_key, recording every candidate considered: `source_type` (`base`/`registry`/`npm`/`repo`/`scratch`), `ref`, `commit_sha` (required when `source_type="repo"`), `license_spdx`, `decision` (`accepted`/`rejected`), `reason`. If `runs.input_repo_url` is set, it is recorded as a `source_type="base"`, `decision="accepted"` row. When no suitable match exists, SCAVENGER records `source_type="scratch"`, `decision="accepted"` so BUILDER knows to hand-build it. `summary` totals accepted/rejected/scratch and flags license concerns.
 
@@ -40,7 +40,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 ## 3. BUILDER
 
-**Inputs:** SCAVENGER's accepted `sources` rows; PLANNER's spec (to bound extraction scope per function_key). LLM role: `coder`.
+**Inputs:** SCAVENGER's accepted `sources` rows; PLANNER's spec (to bound extraction scope per function_key). LLM role: `builder`.
 
 **Outputs:** extracted, buildable code per function_key committed to `run_stages.branch`; an `artifacts` row `kind="notices"` compiling third-party attribution from every accepted source actually used (`license_spdx`, `ref`, `commit_sha`). `summary` lists components extracted and any that required reduction/rewrite to isolate.
 
@@ -52,7 +52,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 ## 4. STITCHER
 
-**Inputs:** BUILDER's branch, extracted-component map, and notices artifact; the full spec function_key list (completeness check). LLM role: `coder`.
+**Inputs:** BUILDER's branch, extracted-component map, and notices artifact; the full spec function_key list (completeness check). LLM role: `stitcher`.
 
 **Outputs:** a single merged app repo on `run_stages.branch`; an `artifacts` row `kind="manifest"` — file tree cross-referenced to which function_key/source produced each part, plus resolved dependency versions. `summary` states files merged, conflicts resolved, and any function_key it could not merge.
 
@@ -64,7 +64,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 ## 5. FIXER
 
-**Inputs:** STITCHER's merged branch and manifest artifact. LLM role: `coder_high` (terminal correctness gate — see shared conventions above).
+**Inputs:** STITCHER's merged branch and manifest artifact. LLM role: `fixer` (terminal correctness gate — see shared conventions above; nothing downstream re-checks its output, the last chance to catch a bug before it ships).
 
 **Outputs:** repaired commits on the same branch; an `artifacts` row `kind="tests"` (build/lint/test run output, whether pre-existing or FIXER-authored). `summary` lists issues found, issues fixed, tests passing, and any known issue explicitly deferred with a stated reason.
 
@@ -76,7 +76,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 ## 6. PUBLISHER
 
-**Inputs:** FIXER's passing branch and tests artifact; PLANNER's spec (app name/description for the PR). LLM role: `coder_max` — PUBLISHER, FIXER, and APP WRAPPER are the three stages the org has called make-or-break for the whole app, and PUBLISHER specifically routes to the same model+effort as PLANNER (`claude-opus-5-5` @ `effort: max`, one tier above FIXER/APP WRAPPER's `coder_high`): deploy/PR work routinely requires reading and fixing build/deploy config, not just templated text, and a bad publish ships broken to every user.
+**Inputs:** FIXER's passing branch and tests artifact; PLANNER's spec (app name/description for the PR). LLM role: `publisher` — PUBLISHER, FIXER, and APP WRAPPER are the three stages the org has called make-or-break for the whole app, and PUBLISHER routes to the same model+effort as PLANNER (`claude-fable-5-1` @ `effort: max`): deploy/PR work routinely requires reading and fixing build/deploy config, not just templated text, and a bad publish ships broken to every user.
 
 **Outputs:** pushes the branch and opens a PR; deploys a web preview under the project's wildcard-subdomain scheme on Vercel; sets `runs.web_url` (PUBLISHER is its sole writer) once live; an `artifacts` row `kind="report"` (PR URL, deployment URL, build log excerpt). `summary` states the PR and preview URLs.
 
@@ -90,7 +90,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 ## 7. APP WRAPPER
 
-**Inputs:** `runs.web_url` from PUBLISHER; PLANNER's spec (app name/icon/bundle metadata). LLM role: `coder_high` (terminal correctness gate — see shared conventions above; native build/signing failures require real debugging with no re-check downstream).
+**Inputs:** `runs.web_url` from PUBLISHER; PLANNER's spec (app name/icon/bundle metadata). LLM role: `app_wrapper` (terminal correctness gate — see shared conventions above; native build/signing failures require real debugging with no re-check downstream).
 
 **Outputs:** runs Capacitor `add`/`sync`/`build` against the published web app; sets `runs.aab_path` (its sole writer) and an `artifacts` row `kind="aab"` pointing to the signed binary (AAB minimum; APK/IPA if in scope). `summary` states platforms built, signing status, and any build warnings.
 
