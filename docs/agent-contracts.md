@@ -10,7 +10,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 - **`branch`:** each stage records the git branch it worked on/produced in its own `run_stages.branch`, even where by convention it's the same run-scoped branch handed forward by the prior coder stage.
 - **Escalation vs. failure:** `failed` = this stage tried and could not succeed on its own after exhausting its retry budget (a harness-level constant, not specified here); retrying re-runs the same stage. `escalated` = the stage has concluded the problem is outside what it can fix by retrying — it needs a human or a re-run of an earlier stage (most often PLANNER) with new input. `runs.status` has no `escalated` value; an escalated stage leaves `runs.status="running"` (paused) until a human resolves it — the UI must surface escalation from `run_stages.status`, not `runs.status`.
 - **Run-level fields owned outside these contracts:** `runs.current_stage`, `runs.status`, and `runs.finished_at` are sequenced by the pipeline runner that invokes the seven stages in order, not written by the agents themselves. `runs.cost_usd` accrues automatically via `llm-proxy`'s `increment_run_cost` RPC whenever an agent calls the proxy with `run_id` set — agents never write it directly, but every proxy call must include `run_id` for budget enforcement (`runs.budget_usd`) to work. `runs.web_url` and `runs.aab_path` are each owned by exactly one agent (PUBLISHER and APP WRAPPER respectively) as noted below.
-- **LLM routing role** (`llm-proxy`'s `role`: `planner` | `coder` | `low_cost`) is listed per agent as a required input; it is routing/cost metadata, not a prompt or tool choice.
+- **LLM routing role** (`llm-proxy`'s `role`: `planner` | `coder` | `coder_high` | `low_cost`) is listed per agent as a required input; it is routing/cost metadata, not a prompt or tool choice. `coder_high` is reserved for FIXER and APP WRAPPER: they are the pipeline's two terminal correctness gates (nothing downstream re-checks their output — FIXER is the last chance to catch a bug, APP WRAPPER is the pipeline's final stage), so they route to a stronger model than the other four coder-role agents.
 
 ---
 
@@ -64,7 +64,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 ## 5. FIXER
 
-**Inputs:** STITCHER's merged branch and manifest artifact. LLM role: `coder`.
+**Inputs:** STITCHER's merged branch and manifest artifact. LLM role: `coder_high` (terminal correctness gate — see shared conventions above).
 
 **Outputs:** repaired commits on the same branch; an `artifacts` row `kind="tests"` (build/lint/test run output, whether pre-existing or FIXER-authored). `summary` lists issues found, issues fixed, tests passing, and any known issue explicitly deferred with a stated reason.
 
@@ -90,7 +90,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 ## 7. APP WRAPPER
 
-**Inputs:** `runs.web_url` from PUBLISHER; PLANNER's spec (app name/icon/bundle metadata). LLM role: `coder` (native build/signing failures require real debugging).
+**Inputs:** `runs.web_url` from PUBLISHER; PLANNER's spec (app name/icon/bundle metadata). LLM role: `coder_high` (terminal correctness gate — see shared conventions above; native build/signing failures require real debugging with no re-check downstream).
 
 **Outputs:** runs Capacitor `add`/`sync`/`build` against the published web app; sets `runs.aab_path` (its sole writer) and an `artifacts` row `kind="aab"` pointing to the signed binary (AAB minimum; APK/IPA if in scope). `summary` states platforms built, signing status, and any build warnings.
 
