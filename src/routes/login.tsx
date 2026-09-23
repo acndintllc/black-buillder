@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { useSession } from "@/lib/use-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,15 +53,14 @@ function LoginPage() {
   const handleGoogleSignIn = async () => {
     setGoogleSubmitting(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: window.location.origin },
       });
-      if (result.error) throw result.error;
-      if (result.redirected) return;
-      navigate({ to: "/" });
+      if (error) throw error;
+      // On success the browser is redirected to Google, so this component unmounts here.
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Google sign-in failed.");
-    } finally {
       setGoogleSubmitting(false);
     }
   };
