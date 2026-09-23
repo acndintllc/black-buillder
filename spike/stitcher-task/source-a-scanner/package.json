@@ -1,0 +1,14 @@
+{
+  "name": "source-a-scanner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Component extracted from a barcode-scanner reference repo by the BUILDER agent. This is NOT a standalone app: no scripts, no devDependencies, no build config. It lists only the runtime dependencies ScannerView.tsx actually imports, as BUILDER left them.",
+  "dependencies": {
+    "clsx": "^1.2.1",
+    "lucide-react": "^0.294.0"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}
