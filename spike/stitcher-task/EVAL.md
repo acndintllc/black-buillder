@@ -1,5 +1,13 @@
 # Phase 1 Spike — Scoring Rubric
 
+**Status: not run.** The coding-agent engine decision was made on desk research
+(Claude Agent SDK / Claude Code — see `roadmap.md`) rather than by actually running this
+bake-off: OpenHands would have needed its own backend/Docker-sandboxed control-plane
+stood up just to produce a comparison, which wasn't worth the infrastructure cost for
+this decision. This fixture and rubric are left in place in case OpenHands (or another
+engine) is worth re-evaluating later against real production data — if so, follow the
+process below unchanged.
+
 Compares two candidate coding-agent harnesses (**OpenHands** vs **Claude Agent
 SDK / Claude Code**) on the identical STITCHER task defined in `README.md`, run against
 identical, independent copies of this fixture. Score each harness's output against the
