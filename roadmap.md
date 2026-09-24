@@ -41,8 +41,8 @@
 - Verification: unit-tested FIXER's pure logic (`parseOwnerRepo`, the fixer-response validator including the `__fixer_tests__/`-write-guard for the test-authoring call) — 10 cases, all pass. Confirmed the function deploys successfully. Same live end-to-end limitation as every prior agent (sandbox network policy, no service-role key) — needs a real STITCHER output (a green `npm install` + manifest) to actually exercise the fix loop.
 - Built PUBLISHER's PR-opening half for real — the deploy half stays deliberately unbuilt, see below. New `publisher` Edge Function, no sandbox needed (pure GitHub-API calls, FIXER's sandbox already pushed the final commits): looks up the output repo's default branch, opens a PR from `run/<run_id>` against it, idempotent (a re-run finds and reuses an existing PR via GitHub's 422 instead of erroring). PR body is built deterministically from the spec's function list/out-of-scope notes plus FIXER's tests summary — no LLM call needed for this half, all the data was already in hand. Records the report artifact (PR URL/number, tests summary, an explicit `deploy_status: "not_implemented"` note).
 - **Deliberately always escalates rather than passing, even on a successful PR.** `runs.web_url` is a contractually required PUBLISHER output and it's genuinely not set (no deploy mechanism decided yet) — reporting "passed" would misrepresent the run as done when it isn't. This is the honest reading of what "escalated" already means in the shared conventions: the run needs a human decision (deploy provisioning, or a manual deploy) before it's actually finished, not a silent downgrade to "good enough."
-- **Found while building this: `GITHUB_WRITE_TOKEN` lacks the "Pull requests" permission.** It was scoped to Contents/Administration/Metadata when set up for BUILDER, before PUBLISHER's own PR-creation need existed. PUBLISHER handles a 403 here with a specific, actionable escalation message rather than an opaque failure, but the token itself still needs "Pull requests: Read and write" added before a real PR can be opened.
-- Verification: unit-tested PUBLISHER's pure logic (`parseOwnerRepo`, `truncate`) — 6 cases, all pass. Confirmed the function deploys successfully. Can't verify the actual PR-creation call end-to-end this session (network policy + no credentials) — and per the finding above, it would fail on the missing token scope even if it could reach GitHub right now.
+- **Found while building this: `GITHUB_WRITE_TOKEN` lacked the "Pull requests" permission.** It was scoped to Contents/Administration/Metadata when set up for BUILDER, before PUBLISHER's own PR-creation need existed. PUBLISHER handles a 403 here with a specific, actionable escalation message rather than an opaque failure. **Resolved:** "Pull requests: Read and write" has now been added to the token.
+- Verification: unit-tested PUBLISHER's pure logic (`parseOwnerRepo`, `truncate`) — 6 cases, all pass. Confirmed the function deploys successfully. Can't verify the actual PR-creation call end-to-end this session (network policy + no credentials) — the token-scope gap that would have blocked it is now fixed, so a live run should be able to reach GitHub's PR-creation endpoint successfully.
 
 ## In progress
 - Frontend handoff complete; backend build is intentionally outside this Lovable project and will be continued in Claude Code.
@@ -51,7 +51,7 @@
 - PLANNER, SCAVENGER, BUILDER, STITCHER, FIXER, and PUBLISHER's PR-opening half are built (see Done); all still need a real end-to-end test once there's a way to trigger them with real credentials (through the actual app, or manually with the service role key).
 - PUBLISHER's deploy half stays unbuilt until the Vercel wildcard-subdomain provisioning decision gets made — see Open blockers. Until then, every run will end at PUBLISHER in an escalated state (PR open, deploy pending) by design, not APP WRAPPER.
 - APP WRAPPER stays blocked: needs a custom E2B template with an Android toolchain (solvable, not done) plus signing-credential provisioning (undecided). Also needs `runs.web_url`, which nothing sets yet.
-- Add "Pull requests: Read and write" to `GITHUB_WRITE_TOKEN` — needed before PUBLISHER's PR creation will actually work.
+- ~~Add "Pull requests: Read and write" to `GITHUB_WRITE_TOKEN`~~ — **done**, confirmed added; PUBLISHER's PR creation should no longer 403 on scope.
 - Wire the frontend workspace to real persisted runs — **done**, see Done above.
 - Add pricing/docs and publish.
 
@@ -59,6 +59,5 @@
 - Auth providers beyond email + Google.
 - Signing-credential storage/provisioning for APP WRAPPER's Capacitor builds.
 - Vercel wildcard-subdomain provisioning mechanism for PUBLISHER's per-run web previews — the one thing standing between every run and actually finishing end-to-end.
-- `GITHUB_WRITE_TOKEN` needs "Pull requests: Read and write" added — currently scoped to Contents/Administration/Metadata only, so PUBLISHER's PR creation will 403 until this is fixed.
 - A custom E2B template with an Android SDK/JDK/Gradle toolchain for APP WRAPPER — E2B's default template doesn't have one; needs building, not just deciding.
 - `GITHUB_WRITE_TOKEN` Supabase secret for BUILDER/STITCHER/FIXER's output-repo push — confirmed set.
