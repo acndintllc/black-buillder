@@ -17,6 +17,7 @@ interface CallbackRequest {
   source?: string;
   logs?: LogLine[];
   summary?: string;
+  branch?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -53,6 +54,10 @@ Deno.serve(async (req: Request) => {
             ? new Date().toISOString()
             : undefined,
         summary: body.summary,
+        // Only coder stages (BUILDER onward) pass this - omitted, it's left
+        // as-is rather than cleared, per the shared "branch" convention in
+        // docs/agent-contracts.md.
+        branch: body.branch,
       })
       .eq("run_id", body.run_id)
       .eq("agent", body.agent);

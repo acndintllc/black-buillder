@@ -1,0 +1,435 @@
+// BUILDER — turns SCAVENGER's accepted sources into real, committed code per
+// function_key. See docs/agent-contracts.md #3 for the full contract.
+//
+// Engine choice: BUILDER/STITCHER stay on Qwen3.8-Max (llm-proxy role
+// "builder") rather than E2B's turnkey "claude" sandbox template, which only
+// talks to Anthropic models - switching engines would have silently
+// overridden a deliberate, benchmarked cost/model decision. So this drives a
+// bare E2B sandbox itself: the sandbox does git/filesystem work, Qwen (via
+// llm-proxy, same budget/cost tracking every other agent uses) decides what
+// code to write. See roadmap.md's "Open blockers" for the full writeup.
+//
+// Auth: internal service-to-service only, same pattern as every other agent.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { Sandbox } from "npm:e2b@1.6.0";
+
+const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const e2bApiKey = Deno.env.get("E2B_API_KEY") ?? "";
+const githubReadToken = Deno.env.get("GITHUB_TOKEN") ?? "";
+const githubWriteToken = Deno.env.get("GITHUB_WRITE_TOKEN") ?? "";
+const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+const AGENT = "builder";
+const BASE_REPO_FUNCTION_KEY = "__existing_repo__"; // matches scavenger/index.ts
+const SANDBOX_TIMEOUT_MS = 900_000; // 15 minutes - covers cloning, per-function LLM calls, and the final push
+const MAX_CONTEXT_FILES = 40;
+const MAX_FILE_CHARS = 4000;
+const MAX_TOTAL_CONTEXT_CHARS = 60_000;
+
+type LogLine = string | { level: "info" | "warn" | "error"; message: string };
+
+async function callback(
+  run_id: string,
+  status: "running" | "passed" | "failed" | "escalated",
+  opts: { summary?: string; logs?: LogLine[]; branch?: string } = {},
+): Promise<void> {
+  const res = await fetch(`${supabaseUrl}/functions/v1/runner-callback`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${serviceRoleKey}` },
+    body: JSON.stringify({ run_id, agent: AGENT, status, ...opts }),
+  });
+  if (!res.ok) {
+    console.error(`runner-callback failed for run ${run_id}: ${res.status} ${await res.text()}`);
+  }
+}
+
+type SpecFunction = { function_key: string; description: string; acceptance_signal: string };
+type SourceRow = {
+  function_key: string;
+  source_type: "base" | "registry" | "npm" | "repo" | "scratch";
+  ref: string | null;
+  commit_sha: string | null;
+  license_spdx: string | null;
+};
+
+async function runCmd(sandbox: Sandbox, cmd: string): Promise<{ stdout: string; stderr: string }> {
+  const result = await sandbox.commands.run(`bash -lc ${JSON.stringify(cmd)}`);
+  if (result.exitCode !== 0) {
+    throw new Error(`Command failed (${result.exitCode}): ${cmd}\n${result.stderr || result.stdout}`);
+  }
+  return { stdout: result.stdout, stderr: result.stderr };
+}
+
+async function runCmdWithRetry(sandbox: Sandbox, cmd: string, label: string): Promise<{ stdout: string; stderr: string }> {
+  try {
+    return await runCmd(sandbox, cmd);
+  } catch (firstErr) {
+    await new Promise((r) => setTimeout(r, 1500));
+    try {
+      return await runCmd(sandbox, cmd);
+    } catch (secondErr) {
+      throw new Error(`${label} failed after retry: ${secondErr instanceof Error ? secondErr.message : String(secondErr)} (first attempt: ${firstErr instanceof Error ? firstErr.message : String(firstErr)})`);
+    }
+  }
+}
+
+function parseOwnerRepo(url: string): { owner: string; repo: string } | null {
+  const match = url.match(/github\.com[/:]([^/]+)\/([^/.]+?)(?:\.git)?\/?$/);
+  return match ? { owner: match[1], repo: match[2] } : null;
+}
+
+async function ensureOutputRepo(
+  run: { output_repo_url: string | null },
+  run_id: string,
+): Promise<{ owner: string; repo: string; htmlUrl: string; wasCreated: boolean }> {
+  if (run.output_repo_url) {
+    const parsed = parseOwnerRepo(run.output_repo_url);
+    if (!parsed) throw new Error(`Could not parse owner/repo from existing runs.output_repo_url: ${run.output_repo_url}`);
+    return { ...parsed, htmlUrl: run.output_repo_url, wasCreated: false };
+  }
+
+  const userRes = await fetch("https://api.github.com/user", {
+    headers: { accept: "application/vnd.github+json", authorization: `Bearer ${githubWriteToken}` },
+  });
+  if (!userRes.ok) {
+    throw new Error(`GITHUB_WRITE_TOKEN rejected by GitHub (${userRes.status}): ${await userRes.text()}`);
+  }
+  const owner = (await userRes.json()).login as string;
+
+  const name = `blackbuilder-run-${run_id.slice(0, 8)}`;
+  const createRes = await fetch("https://api.github.com/user/repos", {
+    method: "POST",
+    headers: {
+      accept: "application/vnd.github+json",
+      authorization: `Bearer ${githubWriteToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      name,
+      private: true,
+      auto_init: true,
+      description: `Generated by Black Builder for run ${run_id}`,
+    }),
+  });
+  if (!createRes.ok) {
+    throw new Error(`Failed to create output repo "${name}" (${createRes.status}): ${await createRes.text()}`);
+  }
+  const created = await createRes.json();
+
+  const { error: updateErr } = await supabase.from("runs").update({ output_repo_url: created.html_url }).eq("id", run_id);
+  if (updateErr) throw new Error(`Failed to record runs.output_repo_url: ${updateErr.message}`);
+
+  return { owner, repo: created.name, htmlUrl: created.html_url, wasCreated: true };
+}
+
+type BuilderLlmResponse = {
+  mismatch: boolean;
+  mismatch_reason?: string;
+  files: { path: string; content: string }[];
+  notes: string;
+};
+
+function extractJson(raw: string): unknown {
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced ? fenced[1] : raw;
+  return JSON.parse(candidate.trim());
+}
+
+function validateBuilderResponse(
+  data: unknown,
+  function_key: string,
+): { ok: true; response: BuilderLlmResponse } | { ok: false; error: string } {
+  if (typeof data !== "object" || data === null) return { ok: false, error: "response is not a JSON object" };
+  const d = data as Record<string, unknown>;
+
+  if (typeof d.mismatch !== "boolean") return { ok: false, error: '"mismatch" must be a boolean' };
+  if (typeof d.notes !== "string") return { ok: false, error: '"notes" must be a string' };
+
+  if (d.mismatch) {
+    if (typeof d.mismatch_reason !== "string" || !d.mismatch_reason.trim()) {
+      return { ok: false, error: '"mismatch_reason" is required and must be non-empty when mismatch is true' };
+    }
+    return { ok: true, response: { mismatch: true, mismatch_reason: d.mismatch_reason, files: [], notes: d.notes } };
+  }
+
+  if (!Array.isArray(d.files) || d.files.length === 0) {
+    return { ok: false, error: '"files" must be a non-empty array when mismatch is false' };
+  }
+  const prefix = `functions/${function_key}/`;
+  for (const [i, f] of d.files.entries()) {
+    if (typeof f !== "object" || f === null) return { ok: false, error: `files[${i}] is not an object` };
+    const file = f as Record<string, unknown>;
+    if (typeof file.path !== "string" || !file.path.startsWith(prefix)) {
+      return { ok: false, error: `files[${i}].path must be a string starting with "${prefix}"` };
+    }
+    if (typeof file.content !== "string") {
+      return { ok: false, error: `files[${i}].content must be a string` };
+    }
+  }
+
+  return {
+    ok: true,
+    response: { mismatch: false, files: d.files as { path: string; content: string }[], notes: d.notes },
+  };
+}
+
+const BUILDER_SYSTEM_PROMPT = `You are BUILDER, stage 3 of the Black Builder app-building swarm.
+
+For ONE function at a time, you decide exactly what code to write into a dedicated folder (functions/<function_key>/) in the output app's repo, so that function works per its description and acceptance_signal.
+
+You'll be given either:
+- A source repo's file listing/contents (source_type "repo") - a candidate SCAVENGER already vetted for functional fit and license. Adapt what's actually useful from it. Prepend a short attribution comment to any file you adapt from it: "Adapted from <ref> @ <commit_sha>, license: <license_spdx>." Do not gratuitously rewrite code that already works - preserve it, trim it to just what this function needs.
+- Or nothing (source_type "scratch") - write the function from scratch.
+
+Rules:
+- Every file path you write MUST start with "functions/<function_key>/" - never touch files outside that folder, never invent unrelated functionality.
+- If you were given source repo content and, after actually reading it, it does NOT plausibly implement or adapt into this function (SCAVENGER's judgment was wrong) - set "mismatch": true and explain why in "mismatch_reason", and leave "files" empty. Do not force a bad fit.
+- "notes" is one sentence: what you wrote/adapted, or why you're flagging a mismatch.
+
+Respond with nothing but a single JSON object, no markdown fences, no commentary:
+{
+  "mismatch": boolean,
+  "mismatch_reason": string | null,
+  "files": [ { "path": string, "content": string } ],
+  "notes": string
+}`;
+
+Deno.serve(async (req: Request) => {
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405 });
+  }
+
+  const authHeader = req.headers.get("authorization") ?? "";
+  const providedToken = authHeader.replace(/^Bearer\s+/i, "");
+  if (!serviceRoleKey || providedToken !== serviceRoleKey) {
+    return new Response(JSON.stringify({ error: "Unauthorized: internal service calls only" }), { status: 401 });
+  }
+
+  let run_id: string;
+  try {
+    const body = await req.json();
+    run_id = body.run_id;
+    if (!run_id) throw new Error("run_id is required");
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }), { status: 400 });
+  }
+
+  const { data: run, error: runErr } = await supabase
+    .from("runs")
+    .select("input_repo_url, output_repo_url")
+    .eq("id", run_id)
+    .single();
+  if (runErr || !run) {
+    return new Response(JSON.stringify({ error: `run ${run_id} not found: ${runErr?.message}` }), { status: 404 });
+  }
+
+  const { data: specArtifact, error: specErr } = await supabase
+    .from("artifacts")
+    .select("storage_path")
+    .eq("run_id", run_id)
+    .eq("kind", "spec")
+    .limit(1)
+    .maybeSingle();
+  if (specErr || !specArtifact) {
+    const msg = `No spec artifact found for run ${run_id}: ${specErr?.message ?? "none exists"}`;
+    await callback(run_id, "failed", { summary: msg, logs: [{ level: "error", message: msg }] });
+    return new Response(JSON.stringify({ error: msg }), { status: 500 });
+  }
+  const { data: specBlob, error: specDownloadErr } = await supabase.storage.from("artifacts").download(specArtifact.storage_path);
+  if (specDownloadErr || !specBlob) {
+    const msg = `Failed to download spec artifact: ${specDownloadErr?.message}`;
+    await callback(run_id, "failed", { summary: msg, logs: [{ level: "error", message: msg }] });
+    return new Response(JSON.stringify({ error: msg }), { status: 500 });
+  }
+  const spec: { functions: SpecFunction[] } = JSON.parse(await specBlob.text());
+
+  const { data: sourceRows, error: sourcesErr } = await supabase
+    .from("sources")
+    .select("function_key, source_type, ref, commit_sha, license_spdx")
+    .eq("run_id", run_id)
+    .eq("decision", "accepted")
+    .neq("function_key", BASE_REPO_FUNCTION_KEY);
+  if (sourcesErr) {
+    const msg = `Failed to load accepted sources: ${sourcesErr.message}`;
+    await callback(run_id, "failed", { summary: msg, logs: [{ level: "error", message: msg }] });
+    return new Response(JSON.stringify({ error: msg }), { status: 500 });
+  }
+  const sourcesByKey = new Map<string, SourceRow>((sourceRows ?? []).map((s) => [s.function_key, s as SourceRow]));
+
+  await callback(run_id, "running");
+
+  const missingEnv = [
+    !e2bApiKey && "E2B_API_KEY",
+    !githubReadToken && "GITHUB_TOKEN",
+    !githubWriteToken && "GITHUB_WRITE_TOKEN",
+  ].filter(Boolean);
+  if (missingEnv.length > 0) {
+    const msg = `Missing required secret(s): ${missingEnv.join(", ")}. Add them in Supabase project secrets.`;
+    await callback(run_id, "escalated", { summary: msg, logs: [{ level: "error", message: msg }] });
+    return new Response(JSON.stringify({ run_id, status: "escalated", reason: msg }), { status: 200 });
+  }
+
+  const branch = `run/${run_id}`;
+  let sandbox: Sandbox | undefined;
+
+  try {
+    const outputRepo = await ensureOutputRepo(run, run_id);
+    const writeCloneUrl = `https://x-access-token:${githubWriteToken}@github.com/${outputRepo.owner}/${outputRepo.repo}.git`;
+
+    sandbox = await Sandbox.create({ apiKey: e2bApiKey, timeoutMs: SANDBOX_TIMEOUT_MS });
+    await runCmd(sandbox, `git config --global user.email "builder@blackbuilder.app" && git config --global user.name "Black Builder"`);
+
+    if (outputRepo.wasCreated && run.input_repo_url) {
+      // Fresh output repo, and the user asked to complete/modify an existing
+      // repo - start from its content instead of the auto_init'd empty one.
+      await runCmdWithRetry(
+        sandbox,
+        `git clone --depth 1 ${JSON.stringify(run.input_repo_url)} /work && cd /work && git remote set-url origin ${JSON.stringify(writeCloneUrl)} && git checkout -b ${branch} && git push -u origin ${branch}`,
+        "cloning input_repo_url as the output repo's starting point",
+      );
+    } else {
+      await runCmdWithRetry(
+        sandbox,
+        `git clone ${JSON.stringify(writeCloneUrl)} /work && cd /work && (git checkout ${branch} || git checkout -b ${branch})`,
+        "cloning the output repo",
+      );
+    }
+
+    const extractedPaths: Record<string, string[]> = {};
+    const notices: { function_key: string; ref: string; commit_sha: string | null; license_spdx: string | null }[] = [];
+    const perFunctionLogs: LogLine[] = [];
+    const mismatches: { function_key: string; reason: string }[] = [];
+
+    for (const fn of spec.functions) {
+      const source = sourcesByKey.get(fn.function_key);
+      let contextText = "You have no existing source to work from - write this function from scratch.";
+
+      if (source?.source_type === "repo" && source.ref) {
+        const srcDir = `/tmp/sources/${fn.function_key}`;
+        await runCmdWithRetry(
+          sandbox,
+          `mkdir -p ${srcDir} && cd ${srcDir} && git init -q && git remote add origin https://x-access-token:${githubReadToken}@github.com/${source.ref}.git && git fetch --depth 1 origin ${source.commit_sha} && git checkout -q FETCH_HEAD`,
+          `cloning source ${source.ref}@${source.commit_sha} for ${fn.function_key}`,
+        );
+
+        const { stdout: fileList } = await runCmd(sandbox, `find ${srcDir} -type f -not -path '*/.git/*' | head -${MAX_CONTEXT_FILES}`);
+        const paths = fileList.split("\n").map((p) => p.trim()).filter(Boolean);
+
+        let totalChars = 0;
+        const chunks: string[] = [`Source repo: ${source.ref} @ ${source.commit_sha} (license: ${source.license_spdx ?? "unknown"})`, "Files:"];
+        for (const p of paths) {
+          if (totalChars >= MAX_TOTAL_CONTEXT_CHARS) {
+            chunks.push(`(truncated: additional files not shown to stay within context budget)`);
+            break;
+          }
+          const content = await sandbox.files.read(p);
+          const truncated = content.length > MAX_FILE_CHARS ? content.slice(0, MAX_FILE_CHARS) + "\n...(truncated)" : content;
+          const rel = p.replace(`${srcDir}/`, "");
+          chunks.push(`--- ${rel} ---\n${truncated}`);
+          totalChars += truncated.length;
+        }
+        contextText = chunks.join("\n\n");
+      } else if (!source) {
+        perFunctionLogs.push({ level: "warn", message: `${fn.function_key}: no accepted source recorded by SCAVENGER - treating as scratch.` });
+      }
+
+      const userContent = `Function: ${fn.function_key}\nDescription: ${fn.description}\nAcceptance signal: ${fn.acceptance_signal}\n\n${contextText}`;
+
+      let llmResponse: Response;
+      try {
+        llmResponse = await fetch(`${supabaseUrl}/functions/v1/llm-proxy`, {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${serviceRoleKey}` },
+          body: JSON.stringify({
+            role: "builder",
+            run_id,
+            system: BUILDER_SYSTEM_PROMPT,
+            messages: [{ role: "user", content: userContent }],
+            max_tokens: 8192,
+          }),
+        });
+      } catch (err) {
+        throw new Error(`llm-proxy request failed for ${fn.function_key}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      if (!llmResponse.ok) {
+        const bodyText = await llmResponse.text();
+        if (llmResponse.status === 402) {
+          const msg = `Run budget exceeded before BUILDER could finish: ${bodyText}`;
+          await callback(run_id, "failed", { summary: msg, logs: [{ level: "error", message: msg }], branch });
+          return new Response(JSON.stringify({ error: msg }), { status: 502 });
+        }
+        throw new Error(`llm-proxy returned ${llmResponse.status} for ${fn.function_key}: ${bodyText}`);
+      }
+
+      const llmResult = await llmResponse.json();
+      let parsed: unknown;
+      try {
+        parsed = extractJson(llmResult.content ?? "");
+      } catch (err) {
+        throw new Error(`BUILDER's response for ${fn.function_key} was not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      const validation = validateBuilderResponse(parsed, fn.function_key);
+      if (!validation.ok) {
+        throw new Error(`BUILDER's response for ${fn.function_key} failed validation: ${validation.error}`);
+      }
+      const response = validation.response;
+
+      if (response.mismatch) {
+        mismatches.push({ function_key: fn.function_key, reason: response.mismatch_reason! });
+        continue;
+      }
+
+      for (const file of response.files) {
+        await runCmd(sandbox, `mkdir -p $(dirname ${JSON.stringify(`/work/${file.path}`)})`);
+        await sandbox.files.write(`/work/${file.path}`, file.content);
+      }
+      extractedPaths[fn.function_key] = response.files.map((f) => f.path);
+      if (source?.source_type === "repo" && source.ref) {
+        notices.push({ function_key: fn.function_key, ref: source.ref, commit_sha: source.commit_sha, license_spdx: source.license_spdx });
+      }
+      perFunctionLogs.push({
+        level: "info",
+        message: `${fn.function_key}: wrote ${response.files.length} file(s)${source?.source_type === "repo" ? ` (adapted from ${source.ref})` : " (from scratch)"}. ${response.notes}`,
+      });
+    }
+
+    if (mismatches.length > 0) {
+      const reason = `BUILDER found the source(s) fundamentally wrong for their function_key after inspecting real content: ${mismatches
+        .map((m) => `${m.function_key} (${m.reason})`)
+        .join("; ")}. Needs a SCAVENGER re-run for these, not a BUILDER workaround.`;
+      await callback(run_id, "escalated", { summary: reason, logs: [...perFunctionLogs, { level: "warn", message: reason }], branch });
+      return new Response(JSON.stringify({ run_id, status: "escalated", reason }), { status: 200 });
+    }
+
+    await runCmd(sandbox, `cd /work && git add -A && git commit -q -m "BUILDER: extract ${Object.keys(extractedPaths).length} function(s)" --allow-empty`);
+    await runCmdWithRetry(sandbox, `cd /work && git push origin ${branch}`, "pushing BUILDER's commit");
+
+    const noticesPayload = { notices, extracted_paths: extractedPaths };
+    const storagePath = `${run_id}/notices.json`;
+    const { error: uploadErr } = await supabase.storage
+      .from("artifacts")
+      .upload(storagePath, JSON.stringify(noticesPayload, null, 2), { contentType: "application/json", upsert: true });
+    if (uploadErr) throw new Error(`Failed to store notices artifact: ${uploadErr.message}`);
+
+    const { error: artifactErr } = await supabase.from("artifacts").insert({ run_id, kind: "notices", storage_path: storagePath });
+    if (artifactErr) throw new Error(`Failed to record notices artifact row: ${artifactErr.message}`);
+
+    const summary = `Extracted ${Object.keys(extractedPaths).length} function(s) onto ${branch} in ${outputRepo.owner}/${outputRepo.repo} (${notices.length} adapted from existing repos, ${
+      Object.keys(extractedPaths).length - notices.length
+    } written from scratch).`;
+
+    await callback(run_id, "passed", { summary, logs: perFunctionLogs, branch });
+    return new Response(JSON.stringify({ run_id, status: "passed", function_count: Object.keys(extractedPaths).length }), { status: 200 });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await callback(run_id, "failed", { summary: msg, logs: [{ level: "error", message: msg }], branch });
+    return new Response(JSON.stringify({ error: msg }), { status: 500 });
+  } finally {
+    if (sandbox) {
+      await sandbox.kill().catch((err) => console.error(`Failed to kill sandbox for run ${run_id}: ${err}`));
+    }
+  }
+});
