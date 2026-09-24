@@ -38,6 +38,8 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 **Handoff:** BUILDER needs, per accepted source: `source_type`, `ref`, `commit_sha`, and the `function_key` it satisfies.
 
+**Implementation notes (SCAVENGER is built):** requires a `GITHUB_TOKEN` secret (Supabase project secrets, not a repo secret) with at least public-repo read access for Code Search + repo/branch metadata; without it SCAVENGER escalates immediately rather than guessing. License policy (the "allow-list" this contract's success criteria refers to) defaults to permissive OSS only - `MIT`, `Apache-2.0`, `BSD-2-Clause`, `BSD-3-Clause`, `ISC`, `0BSD`, `Unlicense`, `CC0-1.0` - copyleft and unlicensed candidates are rejected, not silently accepted; this fills the "license allow-list/policy" item under Open dependencies below. `runs.input_repo_url`'s base-repo row uses the sentinel `function_key = "__existing_repo__"` (not a real spec function_key) since `sources.function_key` is `NOT NULL`.
+
 ## 3. BUILDER
 
 **Inputs:** SCAVENGER's accepted `sources` rows; PLANNER's spec (to bound extraction scope per function_key). LLM role: `builder`.
@@ -49,6 +51,8 @@ This document defines the **brain repo contract** for each of the seven agents i
 **Failure/escalation:** `failed` — a source can't be cloned/extracted cleanly after retries (repo gone, function not actually present at the pinned ref); retry the same source. `escalated` — the source is fundamentally wrong for its function_key (BUILDER cannot substitute one itself) — needs SCAVENGER re-run.
 
 **Handoff:** STITCHER needs `run_stages.branch`, the notices artifact, and a per-function_key map of extracted file paths.
+
+**Implementation status: blocked, not built.** `runs.output_repo_url` (added this pass - the target repo BUILDER creates/writes into, null until first use) exists, but BUILDER cannot actually be implemented yet: extracting/committing real code and later letting FIXER install/build/test it requires the sandboxed coding-agent runtime (Claude Agent SDK / Claude Code in a throwaway E2B or Daytona sandbox) that `roadmap.md` already decided on but that has never been stood up as infrastructure. A Supabase Edge Function (stateless Deno isolate, no subprocess/filesystem) cannot host that runtime. See "Open dependencies" below.
 
 ## 4. STITCHER
 
@@ -62,6 +66,8 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 **Handoff:** FIXER needs the merged `run_stages.branch` and the manifest artifact defining intended scope/structure.
 
+**Implementation status: blocked, not built** - same sandbox-runtime gap as BUILDER above.
+
 ## 5. FIXER
 
 **Inputs:** STITCHER's merged branch and manifest artifact. LLM role: `fixer` (terminal correctness gate — see shared conventions above; nothing downstream re-checks its output, the last chance to catch a bug before it ships).
@@ -73,6 +79,8 @@ This document defines the **brain repo contract** for each of the seven agents i
 **Failure/escalation:** `failed` — build/tests still fail after the retry budget; retry with a different fix strategy each attempt. `escalated` — the failure traces to a bad component choice upstream (SCAVENGER/BUILDER/STITCHER) that FIXER cannot repair in place — escalate for an earlier-stage re-run rather than looping indefinitely.
 
 **Handoff:** PUBLISHER needs the green branch plus the tests artifact as proof it's ready to ship.
+
+**Implementation status: blocked, not built** - same sandbox-runtime gap as BUILDER (FIXER's branch is what PUBLISHER pushes/PRs from), and the Vercel wildcard-subdomain provisioning mechanism itself is still undecided (see below) - building the deploy half now would mean inventing that decision unilaterally.
 
 ## 6. PUBLISHER
 
@@ -102,6 +110,8 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 *Mobile target is decided (Capacitor — HANDOFF.md #3). Open dependency: signing-credential storage/provisioning is still undecided.*
 
+**Implementation status: blocked, not built** - same sandbox-runtime gap as BUILDER, plus the still-undecided signing-credential provisioning below. A native Capacitor/Gradle build additionally needs a real Android SDK/JDK toolchain, not just a git-and-npm sandbox - whatever engine gets picked for BUILDER/STITCHER/FIXER needs to cover this too, or APP WRAPPER needs its own.
+
 ---
 
 ## Open dependencies (aggregated)
@@ -109,5 +119,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 - ~~GitHub App permission scopes / repo access model for SCAVENGER, BUILDER, and PUBLISHER~~ **Decided:** GitHub App with Contents R&W, Pull Requests R&W, org-level Administration (Write), Metadata (Read, auto-included) — HANDOFF.md #6.
 - Vercel wildcard-subdomain provisioning mechanism for PUBLISHER's web previews (HANDOFF.md #4).
 - Signing-credential storage/provisioning for APP WRAPPER (mobile target itself is decided as Capacitor — HANDOFF.md #3).
-- License allow-list/policy SCAVENGER enforces via `license_spdx` (not yet documented anywhere in-repo).
+- ~~License allow-list/policy SCAVENGER enforces via `license_spdx`~~ **Decided (default):** permissive-OSS-only allow-list (MIT/Apache-2.0/BSD-2/BSD-3/ISC/0BSD/Unlicense/CC0-1.0), implemented in SCAVENGER — see #2 above. Revisit if the org wants a different policy.
 - Per-stage retry-budget constants (max `attempt` before `failed`) — a harness-level configuration, not a schema field.
+- **Sandbox coding-agent runtime for BUILDER/STITCHER/FIXER/APP WRAPPER is decided-but-not-built.** `roadmap.md` already decided the engine (Claude Agent SDK / Claude Code, one throwaway E2B or Daytona sandbox per job) but no infrastructure implementing it exists yet, and Supabase Edge Functions architecturally cannot run it (stateless, no subprocess/filesystem, request-scoped). Blocks all four of those agents plus the deploy half of PUBLISHER (which needs FIXER's branch to exist). Needs: which provider (E2B vs Daytona), an account/API key, and a dispatch layer the pipeline can call the way it calls Edge Functions today.
+- Whether the Claude Agent SDK harness can actually drive its reasoning loop on the non-Anthropic models `builder`/`stitcher`/`scavenger` default to (`dashscope:qwen3.8-max`, `qwen3.5-flash`) — unverified, listed in roadmap.md's Open blockers; matters once the sandbox runtime above exists.

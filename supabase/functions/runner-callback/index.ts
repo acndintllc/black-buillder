@@ -83,7 +83,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Update run.current_stage if agent just finished
+    // Update run.current_stage if agent just finished, and actually advance
+    // the pipeline by invoking the next stage - this callback is "the
+    // pipeline runner" per docs/agent-contracts.md's shared conventions,
+    // the only thing allowed to sequence current_stage/status/finished_at.
     if (body.status === "passed" || body.status === "failed") {
       const agents = [
         "planner",
@@ -96,14 +99,42 @@ Deno.serve(async (req: Request) => {
       ];
       const currentIdx = agents.indexOf(body.agent);
       const nextAgent = agents[currentIdx + 1] || null;
+      const isFailed = body.status === "failed";
+      const isLastStage = !isFailed && nextAgent === null;
 
       await supabase
         .from("runs")
         .update({
           current_stage: nextAgent,
-          status: body.status === "failed" ? "failed" : "running",
+          status: isFailed ? "failed" : isLastStage ? "passed" : "running",
+          finished_at: isFailed || isLastStage ? new Date().toISOString() : undefined,
         })
         .eq("id", body.run_id);
+
+      // Fire-and-forget invoke of the next stage, same pattern as
+      // start-run -> planner. Each stage reports its own progress back
+      // through this same callback endpoint.
+      if (!isFailed && nextAgent) {
+        fetch(`${supabaseUrl}/functions/v1/${nextAgent}`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${supabaseKey}`,
+          },
+          body: JSON.stringify({ run_id: body.run_id }),
+        }).catch((err) => {
+          console.error(`Failed to invoke ${nextAgent} for run ${body.run_id}: ${err}`);
+        });
+      }
+    } else if (body.status === "running" || body.status === "escalated") {
+      // First callback of the run (or an escalation on the very first
+      // stage) - flip runs.status off "pending" so the UI reflects that the
+      // pipeline has actually started. No-op once it's already running.
+      await supabase
+        .from("runs")
+        .update({ status: "running" })
+        .eq("id", body.run_id)
+        .eq("status", "pending");
     }
 
     return new Response(
