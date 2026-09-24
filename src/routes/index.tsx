@@ -19,7 +19,7 @@ import {
   type StageStatus,
 } from "@/lib/agents";
 import { useSession } from "@/lib/use-session";
-import { listRuns, createRun, getRun } from "@/lib/runs.functions";
+import { listRuns, createRun, cancelRun, getRun } from "@/lib/runs.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
@@ -225,6 +225,17 @@ function BlackBuilder() {
     },
   });
 
+  const cancelRunMutation = useMutation({
+    mutationFn: (runId: string) => cancelRun({ data: { runId } }),
+    onSuccess: (_result, runId) => {
+      queryClient.invalidateQueries({ queryKey: ["runs"] });
+      queryClient.invalidateQueries({ queryKey: ["run", runId] });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to cancel the run.");
+    },
+  });
+
   const sendMessage = ({ text }: { text: string }) => {
     const value = text.trim();
     if (!value) return;
@@ -281,6 +292,17 @@ function BlackBuilder() {
           <span className="hidden items-center gap-1.5 font-mono text-[9px] text-success md:flex">
             <span className="h-1.5 w-1.5 rounded-full bg-success" /> SUPABASE CONNECTED
           </span>
+          {selectedRun && (selectedRun.status === "pending" || selectedRun.status === "running") && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-danger hover:text-danger"
+              disabled={cancelRunMutation.isPending}
+              onClick={() => cancelRunMutation.mutate(selectedRun.id)}
+            >
+              Cancel run
+            </Button>
+          )}
           <Button size="sm" variant="ghost" onClick={handleSignOut}>
             <LogOut className="h-3.5 w-3.5" /> Sign out
           </Button>
