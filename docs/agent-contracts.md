@@ -52,7 +52,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 **Handoff:** STITCHER needs `run_stages.branch`, the notices artifact, and a per-function_key map of extracted file paths.
 
-**Implementation status: blocked, not built.** `runs.output_repo_url` (added this pass - the target repo BUILDER creates/writes into, null until first use) exists, but BUILDER cannot actually be implemented yet: extracting/committing real code and later letting FIXER install/build/test it requires the sandboxed coding-agent runtime (Claude Agent SDK / Claude Code in a throwaway E2B or Daytona sandbox) that `roadmap.md` already decided on but that has never been stood up as infrastructure. A Supabase Edge Function (stateless Deno isolate, no subprocess/filesystem) cannot host that runtime. See "Open dependencies" below.
+**Implementation status: built.** Resolved the sandbox-engine question: E2B (not Daytona), but *not* E2B's turnkey "claude" sandbox template — that only talks to Anthropic's API, and BUILDER/STITCHER are deliberately on Qwen3.8-Max via `llm-proxy` for cost/benchmark reasons. Instead BUILDER drives a bare E2B sandbox itself for git/filesystem work, and calls `llm-proxy` (role `builder`) once per function_key to decide what to write, given either the candidate source repo's file listing/contents or nothing (scratch). Creates the output repo on first use (`runs.output_repo_url`, private, under the account owning a new `GITHUB_WRITE_TOKEN` secret — SCAVENGER's `GITHUB_TOKEN` stays read-only, least-privilege, and is reused here only for cloning *source* repos). If `runs.input_repo_url` is set, seeds the fresh output repo from it rather than an empty `auto_init`. Writes each function's files under `functions/<function_key>/` (validated: the LLM cannot write outside that prefix), commits and pushes to `run/<run_id>`, records the notices artifact (`kind="notices"`) which also carries the per-function_key extracted-file-path map STITCHER needs (one artifact, not a separate table). Sets `run_stages.branch` via `runner-callback`'s new `branch` field on the callback payload (previously never wired up for any stage). Requires three secrets: `E2B_API_KEY`, `GITHUB_TOKEN` (read), `GITHUB_WRITE_TOKEN` — missing any of them escalates cleanly rather than guessing. Deviates from the locked "GitHub App" access model (HANDOFF.md #6) by using a plain write-scoped PAT for now — same pragmatic substitution already made for SCAVENGER's read token; flagged, not hidden, revisit if/when the full App is stood up.
 
 ## 4. STITCHER
 
@@ -66,7 +66,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 **Handoff:** FIXER needs the merged `run_stages.branch` and the manifest artifact defining intended scope/structure.
 
-**Implementation status: blocked, not built** - same sandbox-runtime gap as BUILDER above.
+**Implementation status: not yet built, but unblocked.** The sandbox-runtime gap is resolved (see BUILDER above — a bare E2B sandbox, driven by `llm-proxy` calls, not the Anthropic-only "claude" template). STITCHER's job (merge BUILDER's per-function_key folders into one coherent tree, resolve dependency manifests) fits the identical pattern; it just hasn't been built yet, and can't be meaningfully tested until a real BUILDER run exists to hand it a branch/notices artifact.
 
 ## 5. FIXER
 
@@ -80,7 +80,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 **Handoff:** PUBLISHER needs the green branch plus the tests artifact as proof it's ready to ship.
 
-**Implementation status: blocked, not built** - same sandbox-runtime gap as BUILDER (FIXER's branch is what PUBLISHER pushes/PRs from), and the Vercel wildcard-subdomain provisioning mechanism itself is still undecided (see below) - building the deploy half now would mean inventing that decision unilaterally.
+**Implementation status: not yet built, but unblocked.** The sandbox-runtime gap is resolved (see BUILDER above) — a bare E2B sandbox can run real `npm install`/build/test commands just as well as it can run git operations, so FIXER's job is no longer architecturally blocked the way it looked before BUILDER was actually built. Still needs FIXER itself built (not yet started) and STITCHER's output to test against.
 
 ## 6. PUBLISHER
 
@@ -96,6 +96,8 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 *GitHub App scopes are decided (Contents R&W, Pull Requests R&W, org Administration Write, Metadata Read — HANDOFF.md #6). Open dependency: the Vercel wildcard-subdomain provisioning mechanism itself is still undecided (HANDOFF.md #4).*
 
+**Implementation status: not yet built, but partially unblocked.** The sandbox-runtime gap doesn't apply here the way it did to BUILDER/STITCHER/FIXER — by the time PUBLISHER runs, FIXER's sandbox has already pushed the final commits, so PUBLISHER's PR-opening half can be pure GitHub-API calls, same shape as SCAVENGER, no sandbox needed. What's still genuinely undecided is the Vercel wildcard-subdomain provisioning mechanism itself (see above) - building the deploy half now would mean inventing that decision unilaterally.
+
 ## 7. APP WRAPPER
 
 **Inputs:** `runs.web_url` from PUBLISHER; PLANNER's spec (app name/icon/bundle metadata). LLM role: `wrapper` (terminal correctness gate — see shared conventions above; native build/signing failures require real debugging with no re-check downstream).
@@ -110,7 +112,7 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 *Mobile target is decided (Capacitor — HANDOFF.md #3). Open dependency: signing-credential storage/provisioning is still undecided.*
 
-**Implementation status: blocked, not built** - same sandbox-runtime gap as BUILDER, plus the still-undecided signing-credential provisioning below. A native Capacitor/Gradle build additionally needs a real Android SDK/JDK toolchain, not just a git-and-npm sandbox - whatever engine gets picked for BUILDER/STITCHER/FIXER needs to cover this too, or APP WRAPPER needs its own.
+**Implementation status: still blocked, not built.** BUILDER proved E2B sandboxes work for git/filesystem/shell work generally, but APP WRAPPER specifically needs a real Android SDK/JDK/Gradle toolchain preinstalled - E2B's default "base" template doesn't have one. E2B supports custom templates (build one with the toolchain baked in), so this is solvable, but that's a real setup step nobody's done yet. Signing-credential storage/provisioning (below) is the second, independent blocker - even with a working Android sandbox, there's nowhere to keep keystores/certificates yet.
 
 ---
 
@@ -121,5 +123,6 @@ This document defines the **brain repo contract** for each of the seven agents i
 - Signing-credential storage/provisioning for APP WRAPPER (mobile target itself is decided as Capacitor — HANDOFF.md #3).
 - ~~License allow-list/policy SCAVENGER enforces via `license_spdx`~~ **Decided (default):** permissive-OSS-only allow-list (MIT/Apache-2.0/BSD-2/BSD-3/ISC/0BSD/Unlicense/CC0-1.0), implemented in SCAVENGER — see #2 above. Revisit if the org wants a different policy.
 - Per-stage retry-budget constants (max `attempt` before `failed`) — a harness-level configuration, not a schema field.
-- **Sandbox coding-agent runtime for BUILDER/STITCHER/FIXER/APP WRAPPER is decided-but-not-built.** `roadmap.md` already decided the engine (Claude Agent SDK / Claude Code, one throwaway E2B or Daytona sandbox per job) but no infrastructure implementing it exists yet, and Supabase Edge Functions architecturally cannot run it (stateless, no subprocess/filesystem, request-scoped). Blocks all four of those agents plus the deploy half of PUBLISHER (which needs FIXER's branch to exist). Needs: which provider (E2B vs Daytona), an account/API key, and a dispatch layer the pipeline can call the way it calls Edge Functions today.
-- Whether the Claude Agent SDK harness can actually drive its reasoning loop on the non-Anthropic models `builder`/`stitcher`/`scavenger` default to (`dashscope:qwen3.8-max`, `qwen3.5-flash`) — unverified, listed in roadmap.md's Open blockers; matters once the sandbox runtime above exists.
+- ~~Sandbox coding-agent runtime for BUILDER/STITCHER/FIXER is decided-but-not-built~~ **Resolved, and confirmed working, not just decided:** E2B, driven directly (bare sandbox + `llm-proxy` calls for the actual coding decisions), *not* E2B's turnkey Claude Code template - that's Anthropic-only and would have silently overridden BUILDER/STITCHER's deliberate Qwen3.8-Max pick. `npm:e2b` confirmed importable under Supabase's Deno edge runtime; BUILDER is built and deployed on this pattern (see #3 above). STITCHER/FIXER can follow the identical pattern - not yet built, but no longer blocked on infrastructure, only on being written.
+- APP WRAPPER's sandbox needs are a separate, still-open question: a custom E2B template with an Android SDK/JDK/Gradle toolchain (solvable, not done) plus signing-credential provisioning (undecided) - see #7 above.
+- `GITHUB_WRITE_TOKEN` Supabase secret for BUILDER's output-repo creation/push - a second, write-scoped token alongside SCAVENGER's read-only `GITHUB_TOKEN`, substituting for the still-not-stood-up GitHub App (HANDOFF.md #6) the same pragmatic way `GITHUB_TOKEN` already does.
