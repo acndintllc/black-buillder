@@ -1,0 +1,7 @@
+# E2B custom sandbox template for APP WRAPPER. Same bare-sandbox pattern as
+# BUILDER/STITCHER/FIXER (Sandbox.create({ template, apiKey, timeoutMs }) via
+# npm:e2b, driven directly - not E2B's turnkey "claude" template), just with
+# this template id instead of the default, so the Android toolchain in
+# e2b.Dockerfile is preinstalled rather than fetched per-run.
+template_name = "black-builder-app-wrapper"
+dockerfile = "e2b.Dockerfile"

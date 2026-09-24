@@ -47,6 +47,9 @@
 ## In progress
 - Frontend handoff complete; backend build is intentionally outside this Lovable project and will be continued in Claude Code.
 
+- Scoped APP WRAPPER's two independent blockers. **Toolchain (buildable now, not yet built):** wrote a custom E2B sandbox-template source (`supabase/functions/wrapper/sandbox-template/`) - JDK 17, Android cmdline-tools + `platforms;android-34` + `build-tools;34.0.0`, Node 20 for the Capacitor CLI; Gradle comes from each project's own `./gradlew` wrapper, not preinstalled. Not yet built/pushed to E2B's registry - this session's network policy blocks `api.e2b.dev`; needs `e2b template build` run from somewhere with E2B CLI access. **Signing (decided, not yet built): Play App Signing** - distribute through Google Play Console, APP WRAPPER only generates/signs with an upload keystore, Google holds the real distribution key. Open: whether a Play Console developer account already exists, and where the upload keystore gets generated/stored.
+- Discussed PUBLISHER's Vercel deploy-half provisioning mechanism (Git-integration import vs. direct Deployment-API upload) - CEO wants to discuss further before committing; not yet decided or built.
+
 ## Up next (Claude Code)
 - PLANNER, SCAVENGER, BUILDER, STITCHER, FIXER, and PUBLISHER's PR-opening half are built (see Done); all still need a real end-to-end test once there's a way to trigger them with real credentials (through the actual app, or manually with the service role key).
 - PUBLISHER's deploy half stays unbuilt until the Vercel wildcard-subdomain provisioning decision gets made — see Open blockers. Until then, every run will end at PUBLISHER in an escalated state (PR open, deploy pending) by design, not APP WRAPPER.
