@@ -186,6 +186,12 @@ function LoginPage() {
           <Link to="/terms" className="hover:text-foreground">
             Terms of Service
           </Link>
+          <Link to="/disclaimers" className="hover:text-foreground">
+            Disclaimers
+          </Link>
+          <Link to="/guidelines" className="hover:text-foreground">
+            Guidelines
+          </Link>
         </footer>
       </div>
     </main>

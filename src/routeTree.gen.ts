@@ -10,6 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DisclaimersRouteImport } from './routes/disclaimers'
+import { Route as GuidelinesRouteImport } from './routes/guidelines'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as TermsRouteImport } from './routes/terms'
@@ -17,6 +19,16 @@ import { Route as TermsRouteImport } from './routes/terms'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DisclaimersRoute = DisclaimersRouteImport.update({
+  id: '/disclaimers',
+  path: '/disclaimers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuidelinesRoute = GuidelinesRouteImport.update({
+  id: '/guidelines',
+  path: '/guidelines',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -37,12 +49,16 @@ const TermsRoute = TermsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/disclaimers': typeof DisclaimersRoute
+  '/guidelines': typeof GuidelinesRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/disclaimers': typeof DisclaimersRoute
+  '/guidelines': typeof GuidelinesRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
@@ -50,20 +66,32 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/disclaimers': typeof DisclaimersRoute
+  '/guidelines': typeof GuidelinesRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/privacy' | '/terms'
+  fullPaths:
+    '/' | '/disclaimers' | '/guidelines' | '/login' | '/privacy' | '/terms'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/privacy' | '/terms'
-  id: '__root__' | '/' | '/login' | '/privacy' | '/terms'
+  to: '/' | '/disclaimers' | '/guidelines' | '/login' | '/privacy' | '/terms'
+  id:
+    | '__root__'
+    | '/'
+    | '/disclaimers'
+    | '/guidelines'
+    | '/login'
+    | '/privacy'
+    | '/terms'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DisclaimersRoute: typeof DisclaimersRoute
+  GuidelinesRoute: typeof GuidelinesRoute
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
@@ -76,6 +104,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/disclaimers': {
+      id: '/disclaimers'
+      path: '/disclaimers'
+      fullPath: '/disclaimers'
+      preLoaderRoute: typeof DisclaimersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guidelines': {
+      id: '/guidelines'
+      path: '/guidelines'
+      fullPath: '/guidelines'
+      preLoaderRoute: typeof GuidelinesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -104,6 +146,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DisclaimersRoute: DisclaimersRoute,
+  GuidelinesRoute: GuidelinesRoute,
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,
