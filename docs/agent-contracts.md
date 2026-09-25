@@ -26,6 +26,8 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 **Handoff:** SCAVENGER needs only the spec artifact's `storage_path` and its function_key list to begin.
 
+**Implementation status: built.** A `planner` Edge Function reads `runs.prompt`/`input_repo_url`, calls `llm-proxy` (role `planner`) to produce the locked spec, validates the response structurally (unique function_keys, non-empty), stores it as the spec artifact, and reports via `runner-callback` - which now also acts as the pipeline runner, fire-and-forget invoking each next stage on `passed` rather than just updating `runs.current_stage` and stopping. `start-run` invokes PLANNER automatically right after creating a run's rows.
+
 ## 2. SCAVENGER
 
 **Inputs:** PLANNER's spec artifact (function_keys + descriptions); `runs.input_repo_url` if present. LLM role: `scavenger`.
