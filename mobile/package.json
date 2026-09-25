@@ -1,0 +1,13 @@
+{
+  "name": "black-builder-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Native mobile shell for Black Builder's own workspace - not a generated app, and not part of the per-run pipeline. See README.md.",
+  "dependencies": {
+    "@capacitor/core": "^6.1.0",
+    "@capacitor/android": "^6.1.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.0"
+  }
+}
