@@ -1,0 +1,9 @@
+{
+  "appId": "com.ascend.blackbuilder",
+  "appName": "Black Builder",
+  "webDir": "www",
+  "server": {
+    "url": "https://blackappcompleter.lovable.app",
+    "androidScheme": "https"
+  }
+}

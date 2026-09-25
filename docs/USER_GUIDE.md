@@ -25,6 +25,8 @@ You describe an app. A swarm of seven AI agents plans it, builds it, tests it, a
 | **PUBLISHER** | Opens the pull request against your repository and deploys a live, working preview of your app so you can see and use it immediately. |
 | **APP WRAPPER** | If you want a mobile app, wraps your live web app in a native Android shell and produces a signed package ready for distribution. |
 
+**Web and mobile always match, automatically.** The mobile app APP WRAPPER produces isn't a separate build — it's the exact same live web app, just running inside a native Android shell. There's nothing to sync and nothing that can drift: open it on your phone, open it in a browser, switch between them whenever you want, and you're always looking at the same thing.
+
 ## Understanding run status
 
 - **Passed** — that stage finished successfully; the pipeline moves on.

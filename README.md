@@ -2,7 +2,7 @@
 
 Give it a prompt. It hands the prompt to a seven-agent swarm that specs the app, finds and adapts real open-source components for it, assembles and repairs them into one working project, opens a PR, deploys a live web preview, and packages a signed Android app — with no human step in between unless something genuinely needs a human decision.
 
-**Live app:** https://blackappcompleter.lovable.app
+**Live app:** https://blackappcompleter.lovable.app — works on web, workstation, or the native mobile app (see [`mobile/`](mobile/)); same account, same data, always in sync, since every client talks to the same Supabase backend.
 
 ## The pipeline
 
@@ -29,7 +29,8 @@ Every stage shares one contract (inputs, outputs, success criteria, failure vs. 
 - **Coding-agent runtime:** a bare [E2B](https://e2b.dev) sandbox per job, driven directly (not E2B's turnkey Claude Code template) so every LLM call goes through `llm-proxy` and stays under `runs.budget_usd`/`runs.cost_usd` enforcement.
 - **Model routing:** `llm-proxy` gives each agent its own independently-tunable model + effort (`LLM_ROLE_*` / `LLM_ROLE_*_EFFORT`) — PLANNER/FIXER/PUBLISHER/APP WRAPPER on `claude-fable-5-1`, SCAVENGER on `qwen3.5-flash`, BUILDER/STITCHER on `qwen3.8-max`.
 - **Deploy target:** Vercel (direct Deployment API, one Project per run).
-- **Mobile target:** Capacitor, Play App Signing (upload-keystore only — Google holds the real distribution key).
+- **Mobile target (generated apps):** Capacitor, Play App Signing (upload-keystore only — Google holds the real distribution key).
+- **Mobile target (Black Builder itself):** same Capacitor-shell-over-the-live-URL pattern, applied to Black Builder's own workspace — see [`mobile/`](mobile/). Sync across web/workstation/mobile needs no separate mechanism: all state already lives in Supabase, not in any client.
 
 ## Docs map
 
@@ -43,6 +44,7 @@ Every stage shares one contract (inputs, outputs, success criteria, failure vs. 
 - [`docs/MISSION.md`](docs/MISSION.md) — why this exists.
 - [`docs/PLATFORM_PROMISE.md`](docs/PLATFORM_PROMISE.md) — what the platform commits to, and where that's enforced in code, not just stated.
 - Site footer links: [Privacy Policy](/privacy), [Terms of Service](/terms), [Disclaimers](/disclaimers), [Participation Guidelines](/guidelines).
+- [`mobile/README.md`](mobile/README.md) — the native mobile shell for Black Builder itself (not a generated app): what it is, why sync needs no new work, how to build it.
 
 ## Setup
 
