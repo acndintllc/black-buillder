@@ -33,9 +33,16 @@ Every stage shares one contract (inputs, outputs, success criteria, failure vs. 
 
 ## Docs map
 
+**For engineers:**
 - [`docs/agent-contracts.md`](docs/agent-contracts.md) — the contract for each agent: inputs, outputs, success/failure criteria, and current implementation status. Read this first if you're changing what an agent does.
 - [`HANDOFF.md`](HANDOFF.md) — the frontend↔backend bridge doc: what the Lovable-built demo provides, the locked architecture decisions, and their rationale.
 - [`roadmap.md`](roadmap.md) — the full build log: what's done, in progress, and blocked, in the order it happened.
+
+**For users and everyone else:**
+- [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) — how to use BLACK BUILDER, in plain language, with what each agent does and what "escalated" means for you.
+- [`docs/MISSION.md`](docs/MISSION.md) — why this exists.
+- [`docs/PLATFORM_PROMISE.md`](docs/PLATFORM_PROMISE.md) — what the platform commits to, and where that's enforced in code, not just stated.
+- Site footer links: [Privacy Policy](/privacy), [Terms of Service](/terms), [Disclaimers](/disclaimers), [Participation Guidelines](/guidelines).
 
 ## Setup
 
