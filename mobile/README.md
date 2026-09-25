@@ -20,7 +20,15 @@ npx cap sync android
 cd android && ./gradlew assembleDebug   # or bundleRelease + signing for a real release build
 ```
 
-This wasn't run from the Claude Code session that wrote it — same network-policy limitation noted throughout this repo (no access to fetch Gradle/Android SDK components in that sandbox). It follows the identical, already-proven pattern APP WRAPPER's Edge Function runs successfully per-run (`supabase/functions/wrapper/index.ts`), so there's no new technique here to validate — just run it.
+**Actually run from this repo, not just described.** `npm install` and `npx cap add android` both succeeded for real — the `android/` directory in this folder is the genuine output, not a stub, and is checked into the repo so nobody has to regenerate it from scratch. `./gradlew` also runs for real: it downloads Gradle itself successfully (`services.gradle.org` redirects to a reachable GitHub Releases URL), starts a build, and then fails at dependency resolution with an exact, confirmed error:
+
+```
+Could not resolve com.android.tools.build:gradle:8.2.1.
+  > Could not get resource 'https://dl.google.com/dl/android/maven2/...'.
+     > Received status code 403 from server: Forbidden
+```
+
+This isn't a guess or an assumption carried over from elsewhere in the repo — it was tested directly. `dl.google.com` (and its `maven.google.com` alias, which redirects back to the same host) is blocked at this session's network-egress level ("organization policy"), and the Android Gradle Plugin and AndroidX artifacts are only published there — Maven Central doesn't mirror them. Gradle itself, and everything on `registry.npmjs.org`, work fine; specifically Google's own Maven repository does not. Run `./gradlew assembleDebug` again from anywhere with normal internet access and it should proceed past this point with no changes needed.
 
 ## Release builds and app store distribution
 

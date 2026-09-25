@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Black Builder</string>
+    <string name="title_activity_main">Black Builder</string>
+    <string name="package_name">com.ascend.blackbuilder</string>
+    <string name="custom_url_scheme">com.ascend.blackbuilder</string>
+</resources>
