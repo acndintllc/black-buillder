@@ -39,10 +39,26 @@ async function callback(
 // "this needs a human decision" (ambiguous scope, conflicting constraints,
 // disallowed request) instead of forcing a guess — see the contract's
 // escalation clause.
+// Matches the 7 checklist categories priced on the cost model's Component
+// Rate Card sheet - "other" is a safe catch-all for anything that doesn't
+// cleanly fit, so PLANNER never has to force a wrong category or escalate
+// just to classify a function.
+const FUNCTION_CATEGORIES = [
+  "frontend",
+  "backend",
+  "auth",
+  "third_party",
+  "admin",
+  "billing",
+  "subscription",
+  "other",
+] as const;
+type FunctionCategory = (typeof FUNCTION_CATEGORIES)[number];
+
 type PlannerSpec = {
   escalate: boolean;
   escalation_reason?: string;
-  functions: { function_key: string; description: string; acceptance_signal: string }[];
+  functions: { function_key: string; description: string; acceptance_signal: string; category: FunctionCategory }[];
   out_of_scope: string[];
 };
 
@@ -55,6 +71,15 @@ Rules:
 - Do not invent a function_key for anything the user did not ask for, no matter how "obviously" useful it seems. If it's not in the prompt, it's not in the spec.
 - Each function_key must be unique, short, snake_case, and describe one coherent, independently buildable piece (e.g. "barcode_scanner", "user_auth", "result_history"). Do not split one real feature into many tiny keys, and do not merge unrelated features into one key.
 - "acceptance_signal" is the concrete, checkable behavior that proves this function works — not a restatement of the description. Someone should be able to test it without asking you what you meant.
+- "category" classifies each function_key for pricing purposes — pick exactly one:
+  - "frontend": a page, route, or major UI component with no significant backend logic of its own.
+  - "backend": an API endpoint, database schema piece, or server-side business logic unit.
+  - "auth": login, signup, session handling, or access control.
+  - "third_party": integrating an external, non-payment API (maps, email, weather, search, etc.).
+  - "admin": an admin-facing capability (user management, content moderation, an internal dashboard) — distinct from the app's normal user-facing features.
+  - "billing": one-time payment or checkout integration (e.g. Stripe checkout, webhooks).
+  - "subscription": recurring billing — plan management, upgrades/downgrades, prorations, cancellations.
+  - "other": use only when a function genuinely doesn't fit any category above. Do not force a wrong category just to avoid "other".
 - "out_of_scope" lists things a reasonable reader might assume are included but are not — be explicit so nothing gets silently added later.
 - If the prompt is empty, contradictory, or requires a decision only a human can make (ambiguous scope, conflicting constraints, a disallowed request), set "escalate": true and explain why in "escalation_reason" instead of guessing. Do not produce a partial spec in this case — leave "functions" and "out_of_scope" empty.
 
@@ -63,7 +88,7 @@ Respond with nothing but a single JSON object matching this exact shape, no mark
   "escalate": boolean,
   "escalation_reason": string | null,
   "functions": [
-    { "function_key": string, "description": string, "acceptance_signal": string }
+    { "function_key": string, "description": string, "acceptance_signal": string, "category": "frontend" | "backend" | "auth" | "third_party" | "admin" | "billing" | "subscription" | "other" }
   ],
   "out_of_scope": [string]
 }`;
@@ -103,6 +128,9 @@ function validateSpec(data: unknown): { ok: true; spec: PlannerSpec } | { ok: fa
     }
     if (typeof f.acceptance_signal !== "string" || !f.acceptance_signal.trim()) {
       return { ok: false, error: `functions[${i}].acceptance_signal is missing or empty` };
+    }
+    if (typeof f.category !== "string" || !FUNCTION_CATEGORIES.includes(f.category as FunctionCategory)) {
+      return { ok: false, error: `functions[${i}].category must be one of: ${FUNCTION_CATEGORIES.join(", ")}` };
     }
     if (seen.has(f.function_key)) {
       return { ok: false, error: `duplicate function_key "${f.function_key}"` };
@@ -256,11 +284,11 @@ Deno.serve(async (req: Request) => {
   }
 
   const summary = `Spec locked: ${spec.functions.length} function${spec.functions.length === 1 ? "" : "s"} — ${spec.functions
-    .map((f) => f.function_key)
+    .map((f) => `${f.function_key} (${f.category})`)
     .join(", ")}.`;
   const perFunctionLogs: LogLine[] = spec.functions.map((f) => ({
     level: "info",
-    message: `${f.function_key}: ${f.description}`,
+    message: `${f.function_key} [${f.category}]: ${f.description}`,
   }));
 
   await callback(run_id, "passed", { summary, logs: perFunctionLogs });
