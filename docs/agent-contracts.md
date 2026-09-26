@@ -18,9 +18,9 @@ This document defines the **brain repo contract** for each of the seven agents i
 
 **Inputs:** `runs.prompt` (raw user request); `runs.input_repo_url` if set (an existing repo the user wants completed/modified rather than built from scratch); its own `run_stages` row. LLM role: `planner`.
 
-**Outputs:** an `artifacts` row, `kind="spec"`, whose `storage_path` holds the locked spec: an enumerated list of needed functions/components, each with a unique `function_key`, a description, and an acceptance signal, plus explicit out-of-scope notes. `summary` states the function count and one line per function.
+**Outputs:** an `artifacts` row, `kind="spec"`, whose `storage_path` holds the locked spec: an enumerated list of needed functions/components, each with a unique `function_key`, a description, an acceptance signal, and a `category` (one of `frontend` / `backend` / `auth` / `third_party` / `admin` / `billing` / `subscription` / `other` — matches the cost model's Component Rate Card sheet, and is how checklist-based pricing gets computed per generated spec without a human tagging it by hand), plus explicit out-of-scope notes. `summary` states the function count and one line per function including its category.
 
-**Success criteria:** spec artifact exists and parses; every function_key is unique; every explicit requirement in the prompt maps to at least one function_key (no dropped requirement); no function_key is invented beyond what the prompt supports.
+**Success criteria:** spec artifact exists and parses; every function_key is unique; every function has a valid category; every explicit requirement in the prompt maps to at least one function_key (no dropped requirement); no function_key is invented beyond what the prompt supports.
 
 **Failure/escalation:** `failed` — prompt yields no viable non-empty spec after the retry budget (empty/contradictory input); retry re-interprets the same prompt. `escalated` — the prompt requires a decision only a human can make (ambiguous scope, conflicting constraints, disallowed request) — stop and ask, per org doctrine; never guess.
 
